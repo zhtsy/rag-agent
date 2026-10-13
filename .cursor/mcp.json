@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "my-rag-tools": {
+      "command": "wsl",
+      "args": [
+        "-d", "Ubuntu",
+        "-e", "bash", "-lc",
+        "cd /home/zh/py_code && /home/zh/myenv/bin/python /home/zh/py_code/mcp_server.py"
+      ]
+    }
+  }
+}

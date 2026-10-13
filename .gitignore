@@ -1,0 +1,41 @@
+# ========== 敏感信息 ==========
+.env
+.env.bak
+*.env
+
+# ========== 向量数据库 ==========
+chroma_db/
+dify/
+
+# ========== 模型文件 ==========
+models/
+*.bin
+*.gguf
+*.safetensors
+
+# ========== Python 缓存 ==========
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+venv/
+myenv/
+
+# ========== 日志和评估报告 ==========
+*.log
+eval_report*.json
+eval_failures.txt
+
+# ========== IDE 和系统 ==========
+.idea/
+.vscode/
+.DS_Store
+
+# ========== Docker 相关 ==========
+docker-compose-neo4j.yml
+neo4j_data/
+
+# ========== 临时文件 ==========
+*.tmp
+*.bak
+~*

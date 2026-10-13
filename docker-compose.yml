@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  agent:
+    build: .
+    network_mode: "host"          # 共享宿主机网络，直接访问宿主机的 Ollama
+    volumes:
+      - ./chroma_db:/app/chroma_db
+      - ./knowledge_base:/app/knowledge_base
+      - /home/zh/models:/home/zh/models
+      - ~/.cache/huggingface:/root/.cache/huggingface   # 复用已下载的 CrossEncoder 模型
+    environment:
+      - OLLAMA_HOST=http://127.0.0.1:11434
+    restart: unless-stopped

@@ -1,0 +1,9 @@
+[{
+     "id": "T035",
+    "question": "根据知识库，小陈养了什么宠物？",
+    "expected_answer": "一只金毛叫豆豆",
+    "expected_source": "图谱",
+    "category": "图谱-关系",
+    "must_contain": ["金毛", "豆豆"],
+    "must_not_contain": []
+  }]

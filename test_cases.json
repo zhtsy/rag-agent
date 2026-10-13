@@ -1,0 +1,94 @@
+[
+   {
+    "id": "T001",
+    "question": "根据知识库，小智喜欢什么？",
+    "expected_answer": "小智喜欢python、打游戏、吃羊肉串",
+     "expected_source": "test.txt",
+    "category": "直接检索",
+    "must_contain": ["python", "游戏"],
+    "must_not_contain": ["小赵", "小王", "小明"]
+  },
+  {
+    "id": "T002",
+    "question": "根据知识库，小赵喜欢什么？",
+    "expected_answer": "小赵喜欢玩英雄联盟、吃汉堡、喝咖啡",
+    "expected_source": ["test3.txt","test4.txt"],
+    "category": "直接检索",
+    "must_contain": ["英雄联盟", "汉堡","咖啡"],
+    "must_not_contain": ["小智", "小王", "小明"]
+  },
+  {
+    "id": "T003",
+    "question": "根据知识库，小明喜欢什么？",
+    "expected_answer": "小明喜欢唱跳rap打篮球",
+    "expected_source": "test1.txt",
+    "category": "直接检索",
+    "must_contain": ["唱跳", "篮球"],
+    "must_not_contain": ["小智", "小赵", "小王"]
+  },
+  {
+    "id": "T004",
+    "question": "根据知识库，小王喜欢什么？",
+    "expected_answer": "小王喜欢听古风歌曲",
+    "expected_source": "test2.txt",
+    "category": "直接检索",
+    "must_contain": ["古风"],
+    "must_not_contain": ["小智", "小赵", "小明"]
+  },
+  {
+    "id": "T005",
+    "question": "根据知识库，小赵为什么喜欢喝咖啡？",
+    "expected_answer": "因为咖啡能提神醒脑",
+    "expected_source": "test4.txt",
+    "category": "多跳推理",
+    "must_contain": ["提神"],
+    "must_not_contain": ["小智", "小王"]
+  },
+  {
+    "id": "T006",
+    "question": "根据知识库，小智住在哪里？",
+    "expected_answer": "小智住在南京",
+    "expected_source": "test.txt",
+    "category": "直接检索",
+    "must_contain": ["南京"],
+    "must_not_contain": ["北京", "上海"]
+  },
+  {
+    "id": "T007",
+    "question": "根据知识库，小明不喜欢吃什么？",
+    "expected_answer": "小明不喜欢吃牛肉",
+    "category": "直接检索",
+    "expected_source": "test1.txt",
+    "must_contain": ["牛肉"],
+    "must_not_contain": ["小智", "小赵"]
+  },
+  {
+    "id": "T008",
+    "question": "根据知识库，小明的银行卡密码是多少？",
+    "expected_answer": "无法从知识库中找到",
+    "expected_source": " ",
+    "category": "拒答",
+    "must_contain": ["未找到", "无法", "没有"],
+    "must_not_contain": ["123456", "密码是", "888888"]
+  },
+  {
+    "id": "T009",
+    "question": "根据知识库，小智的工资是多少？",
+    "expected_answer": "无法从知识库中找到",
+    "expected_source": " ",
+    "category": "拒答",
+    "must_contain": ["未找到", "无法", "没有"],
+    "must_not_contain": ["10000", "工资是", "月薪"]
+  },
+  {
+    "id": "T010",
+    "question": "根据知识库，小赵的公司地址在哪里？",
+    "expected_answer": "无法从知识库中找到",
+    "expected_source": " ",
+    "category": "拒答",
+    "must_contain": ["未找到", "无法", "没有"],
+    "must_not_contain": ["北京市", "上海市", "地址是"]
+  }
+
+
+]

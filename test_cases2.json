@@ -1,0 +1,344 @@
+[
+  {
+    "id": "T001",
+    "question": "根据知识库，小智喜欢什么？",
+    "expected_answer": "小智喜欢python、打游戏、吃羊肉串",
+    "expected_source": "test.txt",
+    "category": "直接检索",
+    "must_contain": ["python", "游戏"],
+    "must_not_contain": ["小赵", "小王", "小明"]
+  },
+  {
+    "id": "T002",
+    "question": "根据知识库，小赵喜欢什么？",
+    "expected_answer": "小赵喜欢玩英雄联盟、吃汉堡、喝咖啡",
+    "expected_source": ["test3.txt", "test4.txt"],
+    "category": "直接检索",
+    "must_contain": ["英雄联盟", "咖啡"],
+    "must_not_contain": ["小智", "小王", "小明"]
+  },
+  {
+    "id": "T003",
+    "question": "根据知识库，小明喜欢什么？",
+    "expected_answer": "小明喜欢唱跳rap打篮球，不喜欢吃牛肉",
+    "expected_source": "test1.txt",
+    "category": "直接检索",
+    "must_contain": ["唱跳", "篮球"],
+    "must_not_contain": ["小智", "小赵", "小王"]
+  },
+  {
+    "id": "T004",
+    "question": "根据知识库，小王喜欢什么？",
+    "expected_answer": "小王喜欢听古风歌曲",
+    "expected_source": "test2.txt",
+    "category": "直接检索",
+    "must_contain": ["古风"],
+    "must_not_contain": ["小智", "小赵", "小明"]
+  },
+  {
+    "id": "T005",
+    "question": "根据知识库，小赵为什么喜欢喝咖啡？",
+    "expected_answer": "因为咖啡能提神醒脑，让小赵英雄联盟打得更好",
+    "expected_source": "test4.txt",
+    "category": "多跳推理",
+    "must_contain": ["提神"],
+    "must_not_contain": ["小智", "小王"]
+  },
+  {
+    "id": "T006",
+    "question": "根据知识库，小李养了什么宠物？",
+    "expected_answer": "小李养了一只橘猫叫代码",
+    "expected_source": "test5.txt",
+    "category": "直接检索",
+    "must_contain": ["橘猫", "代码"],
+    "must_not_contain": ["小张", "小刘", "小陈"]
+  },
+  {
+    "id": "T007",
+    "question": "根据知识库，小张擅长做什么甜点？",
+    "expected_answer": "小张擅长做芝士蛋糕和曲奇",
+    "expected_source": "test6.txt",
+    "category": "直接检索",
+    "must_contain": ["蛋糕", "曲奇"],
+    "must_not_contain": ["小李", "小刘", "小周"]
+  },
+  {
+    "id": "T008",
+    "question": "根据知识库，小刘最喜欢吃什么？",
+    "expected_answer": "小刘最喜欢吃火锅，尤其是毛肚和鸭血",
+    "expected_source": "test7.txt",
+    "category": "直接检索",
+    "must_contain": ["火锅", "毛肚"],
+    "must_not_contain": ["小陈", "小周", "小吴"]
+  },
+  {
+    "id": "T009",
+    "question": "根据知识库，小陈养了什么宠物？",
+    "expected_answer": "小陈养了一只金毛叫豆豆",
+    "expected_source": "test8.txt",
+    "category": "直接检索",
+    "must_contain": ["金毛", "豆豆"],
+    "must_not_contain": ["小李", "小张", "小刘"]
+  },
+  {
+    "id": "T010",
+    "question": "根据知识库，小周最拿手的菜是什么？",
+    "expected_answer": "小周最拿手的是开水白菜",
+    "expected_source": "test9.txt",
+    "category": "直接检索",
+    "must_contain": ["开水白菜"],
+    "must_not_contain": ["小陈", "小吴"]
+  },
+  {
+    "id": "T011",
+    "question": "根据知识库，小吴最近在学什么？",
+    "expected_answer": "小吴最近在学潜水",
+    "expected_source": "test10.txt",
+    "category": "直接检索",
+    "must_contain": ["潜水"],
+    "must_not_contain": ["小周", "小陈"]
+  },
+  {
+    "id": "T012",
+    "question": "根据知识库，北京烤鸭的挂炉和焖炉有什么区别？",
+    "expected_answer": "焖炉用炉壁余温烘烤，挂炉用果木明火烤制",
+    "expected_source": "test11.txt",
+    "category": "多跳推理",
+    "must_contain": ["焖炉", "挂炉"],
+    "must_not_contain": ["四川", "广东"]
+  },
+  {
+    "id": "T013",
+    "question": "根据知识库，川菜有多少种经典复合味型？",
+    "expected_answer": "川菜有24种经典复合味型",
+    "expected_source": "test12.txt",
+    "category": "直接检索",
+    "must_contain": ["24"],
+    "must_not_contain": ["粤菜", "淮扬菜"]
+  },
+  {
+    "id": "T014",
+    "question": "根据知识库，广式早茶中的虾饺有什么特点？",
+    "expected_answer": "虾饺以澄面皮裹鲜虾竹笋，褶纹如梳",
+    "expected_source": "test13.txt",
+    "category": "直接检索",
+    "must_contain": ["虾饺", "澄面"],
+    "must_not_contain": ["烧鹅", "叉烧"]
+  },
+  {
+    "id": "T015",
+    "question": "根据知识库，江浙菜的代表作有哪些？",
+    "expected_answer": "淮扬菜代表有大煮干丝、清炖蟹粉狮子头",
+    "expected_source": "test14.txt",
+    "category": "直接检索",
+    "must_contain": ["干丝", "狮子头"],
+    "must_not_contain": ["川菜", "粤菜"]
+  },
+  {
+    "id": "T016",
+    "question": "根据知识库，西北美食中羊肉泡馍起源于什么时期？",
+    "expected_answer": "羊肉泡馍起源于西周时期的羊羹",
+    "expected_source": "test15.txt",
+    "category": "直接检索",
+    "must_contain": ["西周", "羊羹"],
+    "must_not_contain": ["东北", "四川"]
+  },
+  {
+    "id": "T017",
+    "question": "根据知识库，东北的锅包肉有什么特点？",
+    "expected_answer": "锅包肉外酥里嫩、酸甜适口，原名炸肉",
+    "expected_source": "test16.txt",
+    "category": "直接检索",
+    "must_contain": ["锅包肉", "酥"],
+    "must_not_contain": ["小鸡炖蘑菇", "杀猪菜"]
+  },
+  {
+    "id": "T018",
+    "question": "根据知识库，泰拉瑞亚中腐化和猩红有什么区别？",
+    "expected_answer": "腐化风险低回报低，猩红战利品更强但更危险",
+    "expected_source": "泰拉瑞亚",
+    "category": "多跳推理",
+    "must_contain": ["腐化", "猩红"],
+    "must_not_contain": ["加里奥", "德玛西亚"]
+  },
+  {
+    "id": "T019",
+    "question": "根据知识库，加里奥为什么能吸收魔法？",
+    "expected_answer": "加里奥由禁魔石制成，禁魔石对魔法有很强的抵抗性",
+    "expected_source": "加里奥",
+    "category": "多跳推理",
+    "must_contain": ["禁魔石"],
+    "must_not_contain": ["泰拉瑞亚", "德玛西亚人"]
+  },
+  {
+    "id": "T020",
+    "question": "根据知识库，番茄炒蛋需要哪些食材？",
+    "expected_answer": "番茄2个、鸡蛋3个、盐、糖、葱花",
+    "expected_source": "菜谱",
+    "category": "直接检索",
+    "must_contain": ["番茄", "鸡蛋"],
+    "must_not_contain": ["青椒", "黄瓜", "苦瓜"]
+  },
+  {
+    "id": "T021",
+    "question": "根据知识库，虎皮鸡蛋怎么做？",
+    "expected_answer": "鸡蛋煮熟剥壳，油炸至起皱虎皮，加调料小火煮15分钟",
+    "expected_source": "菜谱",
+    "category": "多跳推理",
+    "must_contain": ["虎皮", "油炸"],
+    "must_not_contain": ["番茄", "青椒"]
+  },
+  {
+    "id": "T022",
+    "question": "根据知识库，小明喜欢什么？",
+    "expected_answer": "小明喜欢唱跳rap打篮球，不喜欢吃牛肉",
+    "expected_source": "test1.txt",
+    "category": "直接检索",
+    "must_contain": ["唱跳", "rap", "篮球"],
+    "must_not_contain": ["小智", "小赵"]
+  },
+  {
+    "id": "T023",
+    "question": "根据知识库，小智的银行卡密码是多少？",
+    "expected_answer": "无法从知识库中找到",
+    "expected_source": "",
+    "category": "拒答",
+    "must_contain": ["未找到", "无法", "没有"],
+    "must_not_contain": ["123456", "密码是", "888888", "666666"]
+  },
+  {
+    "id": "T024",
+    "question": "根据知识库，小赵的公司地址在哪里？",
+    "expected_answer": "无法从知识库中找到",
+    "expected_source": "",
+    "category": "拒答",
+    "must_contain": ["未找到", "无法", "没有"],
+    "must_not_contain": ["北京市", "上海市", "地址是"]
+  },
+  {
+    "id": "T025",
+    "question": "根据知识库，小陈的工资是多少？",
+    "expected_answer": "无法从知识库中找到",
+    "expected_source": "",
+    "category": "拒答",
+    "must_contain": ["未找到", "无法", "没有"],
+    "must_not_contain": ["10000", "工资是", "月薪"]
+  },
+  {
+    "id": "T026",
+    "question": "根据知识库，小吴的身份证号是多少？",
+    "expected_answer": "无法从知识库中找到",
+    "expected_source": "",
+    "category": "拒答",
+    "must_contain": ["未找到", "无法", "没有"],
+    "must_not_contain": [ "号码是", "18位"]
+  },
+  {
+    "id": "T027",
+    "question": "根据知识库，小赵喜欢玩什么游戏？",
+    "expected_answer": "小赵喜欢玩英雄联盟，可能也喜欢泰拉瑞亚",
+    "expected_source": ["test3.txt", "泰拉瑞亚"],
+    "category": "跨主题",
+    "must_contain": ["英雄联盟"],
+    "must_not_contain": ["小智", "小王"]
+  },
+  {
+    "id": "T028",
+    "question": "根据知识库，小周作为川菜厨师，最拿手的菜是什么？",
+    "expected_answer": "小周最拿手的是开水白菜",
+    "expected_source": "test9.txt",
+    "category": "跨主题",
+    "must_contain": ["开水白菜"],
+    "must_not_contain": ["回锅肉", "麻婆豆腐"]
+  },
+  {
+    "id": "T029",
+    "question": "根据知识库，小陈作为儿科医生，养了什么宠物？",
+    "expected_answer": "小陈养了一只金毛叫豆豆",
+    "expected_source": "test8.txt",
+    "category": "跨主题",
+    "must_contain": ["金毛", "豆豆"],
+    "must_not_contain": ["橘猫", "仓鼠"]
+  },
+  {
+    "id": "T030",
+    "question": "根据知识库，番茄炒蛋和青椒炒蛋哪个用时更短？",
+    "expected_answer": "番茄炒蛋用时8分钟，青椒炒蛋用时8分钟，一样",
+    "expected_source": "菜谱",
+    "category": "多跳推理",
+    "must_contain": ["8"],
+    "must_not_contain": ["7分钟", "15分钟"]
+  },
+  {
+    "id": "T031",
+    "question": "根据知识库，小陈住在哪个省？",
+    "expected_answer": "广东省",
+    "expected_source": "图谱",
+    "category": "图谱-多跳",
+    "must_contain": ["广东"],
+    "must_not_contain": []
+  },
+  {
+    "id": "T032",
+    "question": "根据知识库，小智住在哪个省？",
+    "expected_answer": "江苏省",
+    "expected_source": "图谱",
+    "category": "图谱-多跳",
+    "must_contain": ["江苏"],
+    "must_not_contain": []
+  },
+  {
+    "id": "T033",
+    "question": "根据知识库，加里奥是由什么材料制成的？",
+    "expected_answer": "禁魔石",
+    "expected_source": "图谱",
+    "category": "图谱-关系",
+    "must_contain": ["禁魔石"],
+    "must_not_contain": []
+  },
+  {
+    "id": "T034",
+    "question": "根据知识库，谁制作了加里奥？",
+    "expected_answer": "杜朗",
+    "expected_source": "图谱",
+    "category": "图谱-关系",
+    "must_contain": ["杜朗"],
+    "must_not_contain": []
+  },
+  {
+    "id": "T035",
+    "question": "根据知识库，小陈养了什么宠物？",
+    "expected_answer": "一只金毛叫豆豆",
+    "expected_source": "图谱",
+    "category": "图谱-关系",
+    "must_contain": ["金毛", "豆豆"],
+    "must_not_contain": []
+  },
+  {
+    "id": "T036",
+    "question": "根据知识库，小陈在哪里工作？",
+    "expected_answer": "广州的一家三甲医院",
+    "expected_source": "图谱",
+    "category": "图谱-关系",
+    "must_contain": ["医院"],
+    "must_not_contain": []
+  },
+  {
+    "id": "T037",
+    "question": "根据知识库，加里奥和德玛西亚是什么关系？",
+    "expected_answer": "加里奥属于德玛西亚",
+    "expected_source": "图谱",
+    "category": "图谱-关系",
+    "must_contain": ["德玛西亚"],
+    "must_not_contain": []
+  },
+  {
+    "id": "T038",
+    "question": "根据知识库，谁住在广州？",
+    "expected_answer": "小陈",
+    "expected_source": "图谱",
+    "category": "图谱-反向查询",
+    "must_contain": ["小陈"],
+    "must_not_contain": []
+  }
+]
