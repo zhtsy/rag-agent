@@ -13,7 +13,7 @@ from fastmcp import FastMCP
 mcp = FastMCP("MyRAGTools")
 
 # 2. 用 @mcp.tool 装饰器注册你的检索工具
-@mcp.tool
+@mcp.tool(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False)
 def knowledge_base_query(query: str) -> str:
     """
     从本地知识库中检索信息，用于回答关于人物、美食、游戏等事实性问题。
@@ -21,7 +21,7 @@ def knowledge_base_query(query: str) -> str:
     # 直接调用你原来的 search_knowledge_base 函数
     return search_knowledge_base.invoke(query)
 
-@mcp.tool
+@mcp.tool(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False)
 def knowledge_graph_query(query: str) -> str:
     """
     查询知识图谱，用于处理需要多跳推理的关系型问题，例如“谁住在哪个省”。
