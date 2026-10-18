@@ -1,4 +1,4 @@
-https://7330cecf09f54259f5f17d90d291c334.us-east-1.resend-clicks-a.com/CL0/https:%2F%2Fm8ven.ai%2Fmcp%2Fzhtsy%2Frag-agent%3Futm_source=new_listing%26utm_medium=email%26utm_campaign=new_listing/1/010001a148c88bac-78792709-147f-447
+[![M8ven Score](https://m8ven.ai/badge/mcp/zhtsy-rag-agent-mbudvh?v=42ca96884347357d6ea67d17a3beb5cc)](https://m8ven.ai/mcp/zhtsy-rag-agent-mbudvh?s=readme)
 # 🤖 本地 RAG Agent - 多工具智能问答系统
 
 基于 LangGraph + 本地 Ollama + 知识图谱构建的生产级 RAG Agent，支持混合检索、重排序、多跳推理、结构化输出和 MCP 工具封装。
