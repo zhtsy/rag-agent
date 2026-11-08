@@ -18,7 +18,9 @@ jobs:
     timeout-minutes: 5
     strategy:
       matrix:
-        python-version: ["3.10", "3.11"]
+        # 3.12 是生产版本（Dockerfile 用 python:3.12-slim），必须在矩阵里，
+        # 否则「本地跑得通、镜像里跑不通」这类问题永远只能等部署时才发现。
+        python-version: ["3.10", "3.11", "3.12"]
     steps:
       - uses: actions/checkout@v4
 
