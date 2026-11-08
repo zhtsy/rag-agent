@@ -1,13 +1,15 @@
+import os
 import jieba
 from rank_bm25 import BM25Okapi
 from langchain_chroma import Chroma
-from langchain_ollama import OllamaEmbeddings
 from langchain_core.documents import Document
 from langchain_core.retrievers import BaseRetriever
 from typing import List
 
-OLLAMA_HOST = "http://127.0.0.1:11434"
-PERSIST_DIR = "./chroma_db"
+from embeddings_shared import get_embeddings
+
+# 与 rag_agent 同一口径的绝对路径：相对路径在别的 cwd 下会静默建空库。
+PERSIST_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "chroma_db")
 
 ENTITY_TERMS = [
     "小智", "小明", "小王", "小赵", "小李", "小张", "小刘", "小陈", "小周", "小吴",
@@ -48,7 +50,10 @@ class SimpleBM25Retriever(BaseRetriever):
 
 
 def build_bm25_retriever():
-    embedding_model = OllamaEmbeddings(model="nomic-embed-text", base_url=OLLAMA_HOST)
+    # 这里的 Chroma 只用来 get() 出全量文本块喂给 BM25，
+    # embedding_function 在 get() 时根本不会被调用，纯粹是构造函数必填参数。
+    # 传共享单例（与 rag_agent 用的是同一个模型对象），不再新加载一份 400MB。
+    embedding_model = get_embeddings()
     vectorstore = Chroma(persist_directory=PERSIST_DIR, embedding_function=embedding_model)
     data = vectorstore.get()
     return SimpleBM25Retriever(

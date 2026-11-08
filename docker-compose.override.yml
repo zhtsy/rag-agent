@@ -1,0 +1,61 @@
+# 增量配置：不动 docker-compose.yml（含密钥），只追加资源约束与健康检查。
+# docker compose 会自动合并本文件。
+#
+# 内存口径（物理 3.5Gi，实测 backend 1.63Gi / neo4j 358Mi / mysql 78Mi）：
+#   加 limit 的目的不是"省内存"，而是让 OOM 时只影响一个容器（cgroup 内杀），
+#   而不是内核从全局随机挑一个牺牲者——以前最坏情况会杀掉 mysql。
+#   各 limit 之和 3920m 略超物理内存，这是有意的超卖：limit 是峰值上限，不是预留。
+
+services:
+  neo4j:
+    mem_limit: 800m
+    # 只探端口不探 Cypher：健康检查不该依赖口令，也不该在库繁忙时加重负担。
+    healthcheck:
+      test: ["CMD-SHELL", "timeout 3 bash -c '</dev/tcp/127.0.0.1/7687' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+
+  mysql:
+    # 实测稳态 378MiB。给 400m 只剩 22MiB 余量，等于随时可能被 cgroup 杀掉，改 700m。
+    mem_limit: 700m
+
+  backend:
+    mem_limit: 2400m
+    # /health 是 200 即存活（排满队也返回 200，排队情况看 inflight 字段）。
+    # start_period 给足：容器冷启动要加载 embedding + reranker 两个模型。
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://127.0.0.1:8000/health',timeout=3)\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 120s
+
+  admin:
+    mem_limit: 160m
+    # 加了全站鉴权后，无密钥探 `/` 会返回 401，原来的探针会被 HTTPError 判成不健康。
+    # 改成探 TCP 端口：能 accept 就说明 Flask 活着——健康检查判"活着"，不判"能不能访问"。
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import socket;s=socket.create_connection(('127.0.0.1',5001),3);s.close()\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  frontend:
+    # 这里刻意不覆盖 image / build / command。
+    # 原写法指向 ./frontend_image，但仓库里没有这个目录，clone 下来执行
+    # `docker compose up` 会直接构建失败。回退到原 compose 的
+    # "pip install && streamlit run"，启动多花十几秒，但 clone 即可跑。
+    # 想加速就自己补 frontend_image/Dockerfile，再放开下面两行：
+    #   image: rag_frontend:latest
+    #   build: {context: ./frontend_image, dockerfile: Dockerfile}
+    mem_limit: 400m
+    # Streamlit 自带健康端点，比探首页更轻，也不会被前端渲染异常干扰。
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://127.0.0.1:8501/_stcore/health',timeout=3)\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s

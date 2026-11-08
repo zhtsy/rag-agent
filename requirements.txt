@@ -1,12 +1,38 @@
-fastapi
-uvicorn
-python-dotenv
+# 核心 LangChain & LangGraph 生态
 langchain
+langchain-core 
+langchain-community 
+langchain-classic 
+langgraph 
+langchain-chroma 
+langchain-neo4j 
+neo4j
+# 大模型接口
+langchain-deepseek 
 langchain-ollama
-langchain-core
-langgraph
-langchain-chroma
-chromadb
-sentence-transformers
+# 向量库与检索
+chromadb 
+rank-bm25 
+jieba
+# 重排模型 (会自动拉取纯 CPU 版 torch)
+FlagEmbedding 
+torch 
+transformers
+# Web 框架与前端
+fastapi 
+uvicorn 
+streamlit 
+requests
+# 基础工具与日志
+loguru 
+python-dotenv 
 pydantic
-torch
+rich
+langchain-openai
+pymysql
+sqlalchemy
+flask
+
+# 本地跑 bge embedding（RAG_EMBED_PROVIDER=bge）时需要；用 ollama provider 时不用。
+# 云端镜像里是预装的，所以云端 requirements.txt 原本没列这一行。
+sentence-transformers

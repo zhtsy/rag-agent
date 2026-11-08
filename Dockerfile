@@ -1,10 +1,9 @@
-
 FROM python:3.12-slim
 
 WORKDIR /app
 
-# 安装 uv
-RUN pip install --no-cache-dir uv
+# 安装 uv 加速依赖
+RUN pip install --no-cache-dir uv -i https://pypi.tuna.tsinghua.edu.cn/simple
 
 COPY requirements.txt .
 
