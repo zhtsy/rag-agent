@@ -1,5 +1,9 @@
 # RAG 知识库问答系统
 
+[![CI](https://github.com/zhtsy/rag-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/zhtsy/rag-agent/actions/workflows/ci.yml)
+[![Python 3.12](https://img.shields.io/badge/python-3.12-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+
 > **库里有什么就答什么，没有就说没有，每句话都能指回出处。**
 > 三路混合检索（Chroma 向量 / BM25 关键词 / Neo4j 图谱）+ CPU 重排 + SSE 真流式 + 多层护栏。
 > 单机 2 vCPU / 3.5 GiB、5 个容器跑通全栈，Python 约 9000 行。
