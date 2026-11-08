@@ -235,7 +235,7 @@ sleep 45 && python3 drill_degrade.py restored test_cases2.json T037
 ### 5.6 凭据轮换与外置（本轮补的，P0 最后一项）
 
 问题不是"口令弱"，是**口令写在会进 git 的文件里**：`docker-compose.yml` 明文写着
-`NEO4J_AUTH=neo4j/password123`（教科书默认值）、MySQL root 与业务账号口令，还有 3 处内嵌口令的
+`NEO4J_AUTH=neo4j/<口令>`（教科书默认值；此处原文已脱敏）、MySQL root 与业务账号口令，还有 3 处内嵌口令的
 `DATABASE_URL`；而仓库根目录**没有 `.gitignore`**。一旦提交，等于把生产凭据连同 DeepSeek / LangSmith
 的 key 一起公开。
 
