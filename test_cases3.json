@@ -1,0 +1,92 @@
+[
+  {
+    "id": "C001",
+    "question": "根据知识库，小张养了什么宠物？",
+    "expected_answer": "小张养了一只叫布丁的仓鼠",
+    "expected_source": "test6.txt",
+    "category": "直接检索",
+    "must_contain": ["仓鼠", "布丁"],
+    "must_not_contain": ["金毛", "橘猫", "拿铁", "豆豆"]
+  },
+  {
+    "id": "C002",
+    "question": "根据知识库，小李的猫叫什么名字？",
+    "expected_answer": "小李的橘猫叫代码",
+    "expected_source": "test5.txt",
+    "category": "直接检索",
+    "must_contain": ["代码"],
+    "must_not_contain": ["布丁", "拿铁", "豆豆"]
+  },
+  {
+    "id": "C003",
+    "question": "根据知识库，小吴在哪里工作？",
+    "expected_answer": "小吴在深圳一家MCN机构做自媒体运营",
+    "expected_source": "test10.txt",
+    "category": "直接检索",
+    "must_contain": ["深圳", "MCN"],
+    "must_not_contain": ["杭州", "广州", "上海"]
+  },
+  {
+    "id": "C004",
+    "question": "根据知识库，小陈是做什么工作的？",
+    "expected_answer": "小陈是广州三甲医院的儿科医生",
+    "expected_source": "test8.txt",
+    "category": "直接检索",
+    "must_contain": ["儿科"],
+    "must_not_contain": ["程序员", "设计师", "运营"]
+  },
+  {
+    "id": "C005",
+    "question": "根据知识库，小陈养的狗是什么品种？",
+    "expected_answer": "小陈养的金毛叫豆豆",
+    "expected_source": "test8.txt",
+    "category": "直接检索",
+    "must_contain": ["金毛"],
+    "must_not_contain": ["仓鼠", "泰迪", "柯基"]
+  },
+  {
+    "id": "C006",
+    "question": "根据知识库，小吴养的猫叫什么名字？",
+    "expected_answer": "小吴养的猫叫拿铁",
+    "expected_source": "test10.txt",
+    "category": "图谱-关系",
+    "must_contain": ["拿铁"],
+    "must_not_contain": ["布丁", "代码", "豆豆"]
+  },
+  {
+    "id": "C007",
+    "question": "根据知识库，谁养了仓鼠？",
+    "expected_answer": "小张养了仓鼠布丁",
+    "expected_source": "test6.txt",
+    "category": "图谱-反向查询",
+    "must_contain": ["小张"],
+    "must_not_contain": ["小陈", "小吴", "小李"]
+  },
+  {
+    "id": "C008",
+    "question": "根据知识库，小张和小李分别住在哪个城市？",
+    "expected_answer": "小张住在上海，小李住在杭州",
+    "expected_source": ["test6.txt", "test5.txt"],
+    "category": "多跳推理",
+    "must_contain": ["上海", "杭州"],
+    "must_not_contain": ["广州", "深圳"]
+  },
+  {
+    "id": "C009",
+    "question": "根据知识库，养猫的是哪几个人？",
+    "expected_answer": "小李养了橘猫代码，小吴养了猫拿铁；小陈养的是金毛",
+    "expected_source": ["test5.txt", "test8.txt", "test10.txt"],
+    "category": "跨主题",
+    "must_contain": ["小李", "小吴"],
+    "must_not_contain": ["小智", "小赵", "小明"]
+  },
+  {
+    "id": "C010",
+    "question": "根据知识库，小王养了什么宠物？",
+    "expected_answer": "资料里提到小王是古风小生、喜欢古风歌曲，但没有提到他养宠物，应如实说明无法确定",
+    "expected_source": null,
+    "category": "拒答",
+    "must_contain": ["没有", "未提", "没提", "不涉及", "无法", "找不到", "不存在", "没有提及"],
+    "must_not_contain": ["金毛", "仓鼠", "布丁", "拿铁"]
+  }
+]

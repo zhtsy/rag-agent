@@ -1,9 +1,9 @@
 [{
-     "id": "T035",
-    "question": "根据知识库，小陈养了什么宠物？",
-    "expected_answer": "一只金毛叫豆豆",
+    "id": "T033",
+    "question": "根据知识库，加里奥是由什么材料制成的？",
+    "expected_answer": "禁魔石",
     "expected_source": "图谱",
     "category": "图谱-关系",
-    "must_contain": ["金毛", "豆豆"],
+    "must_contain": ["禁魔石"],
     "must_not_contain": []
   }]

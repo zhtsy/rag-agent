@@ -168,7 +168,8 @@
     "expected_source": "加里奥",
     "category": "多跳推理",
     "must_contain": ["禁魔石"],
-    "must_not_contain": ["泰拉瑞亚", "德玛西亚人"]
+    "must_not_contain": ["泰拉瑞亚"],
+    "note": "移除过宽禁用词「德玛西亚人」：原文中禁魔石的来历就写在德玛西亚人故事线里，讲清禁魔石几乎必然会提到它，与 must_contain=[\"禁魔石\"] 自相矛盾。保留「泰拉瑞亚」承担防跨主题串台的原始意图。"
   },
   {
     "id": "T020",
@@ -276,7 +277,9 @@
     "expected_source": "图谱",
     "category": "图谱-多跳",
     "must_contain": ["广东"],
-    "must_not_contain": []
+    "must_not_contain": [],
+    "needs_inference": true,
+    "note": "知识库只写\"在广州工作\"，广州→广东需要一步外部常识。按理不算检索召回缺陷，所以标 needs_inference：归因会记成 inference_miss 而不是 retrieval_miss，避免有人去优化召回（永远修不好）。"
   },
   {
     "id": "T032",
@@ -285,7 +288,9 @@
     "expected_source": "图谱",
     "category": "图谱-多跳",
     "must_contain": ["江苏"],
-    "must_not_contain": []
+    "must_not_contain": [],
+    "needs_inference": true,
+    "note": "同上：知识库只写\"住在南京\"，南京→江苏是外部常识。"
   },
   {
     "id": "T033",
