@@ -35,7 +35,43 @@ eval_failures.txt
 docker-compose-neo4j.yml
 neo4j_data/
 
+# ========== 数据飞轮 ==========
+feedback_log.jsonl
+flywheel_report.md
+_flywheel_backup/
+
 # ========== 临时文件 ==========
 *.tmp
 *.bak
 ~*
+
+# ========== 运行时密钥（不进 git） ==========
+.rag_api_key
+*.key
+trace_*.jsonl
+
+# ========== 2026-11-07 迁移补充（来自云端 .gitignore） ==========
+.venv/
+.mcp_libs/
+.venv-mcp/
+backups/
+logs/
+.env.*
+!.env.example
+# 本次迁移的临时目录与备份，不进 git
+_migrate_staging/
+_migrate_backup_*/
+
+# ========== 2026-11-08 根目录清理 ==========
+# 学习草稿（1.py / 结构化输出练习 / 各种测试.py）与临时探针（diag_* / probe_*）
+# 统一归入 sandbox/，只移动不删除，但不进 git：仓库根目录只留可交付的东西。
+sandbox/
+# 重构备份与飞轮备份目录
+.refactor_backup/
+failures/
+# 一次性整理脚本
+_cleanup.sh
+# 容器联调时留下的空占位文件
+.__wtest
+# 本机 Agent 工作目录
+.workbuddy/
