@@ -11,9 +11,11 @@
 import pytest
 
 from retrieval_router import (
+    AGGREGATE_RULES,
     RULES,
     can_use_rules,
     decide,
+    rule_aggregate,
     rule_relation,
 )
 
@@ -97,9 +99,40 @@ def test_can_use_rules(entities, expected):
 
 
 def test_no_entity_disables_rules():
-    """约束 1 的守卫：把 can_use_rules 改成恒 True 会立刻变红。"""
-    hit, reason, need_llm = decide("谁养了猫", [])
+    """约束 1 的守卫：把 can_use_rules 改成恒 True 会立刻变红。
+
+    注意这里必须用**非聚合**的无实体问句。"谁养了猫"是聚合题，现在由
+    AGGREGATE_RULES 接管（见下一组测试），不再走这条路径。
+    """
+    hit, reason, need_llm = decide("番茄炒蛋怎么做", [])
     assert (hit, reason, need_llm) == (False, "no_ent", True)
+
+
+# ----------------------------------------------------------------------
+# 3.5 聚合问句：天然没有主语实体，但必须走图谱
+#
+# C009 实测：「养猫的是哪几个人」被 LLM 改写成「养猫的人有哪些」，
+# 规则未命中 + 实体 0 个 → 交给模型随机判，于是同一道题时通时不通。
+# 这类问句的答案本身就是实体集合，不能要求它有主语实体。
+# ----------------------------------------------------------------------
+@pytest.mark.parametrize("query,expected", [
+    ("谁养了仓鼠", "rule:agg_pet"),                    # C007 原话
+    ("养猫的人有哪些", "rule:agg_pet_rev"),            # C009 改写后形态
+    ("养猫的是哪几个人", "rule:agg_pet_rev"),          # C009 原话
+    ("哪些人养了狗", "rule:agg_pet"),
+])
+def test_aggregate_questions_route_to_graph(query, expected):
+    hit, reason, need_llm = decide(query, [])
+    assert hit is True, f"{query!r} 应判为聚合题"
+    assert reason == expected
+    assert need_llm is False, "聚合题不该再发一次模型请求"
+
+
+def test_aggregate_rules_do_not_catch_attribute_queries():
+    """负例守卫：属性/流程问句不能被聚合规则吞进来。"""
+    for q in ["番茄炒蛋怎么做", "川菜有什么特点", "小智喜欢什么"]:
+        hit, _ = rule_aggregate(q)
+        assert hit is False, f"{q!r} 被聚合规则误判"
 
 
 # ----------------------------------------------------------------------

@@ -68,6 +68,39 @@ RULES: Tuple[Tuple[str, "re.Pattern[str]"], ...] = (
 )
 
 
+# ----------------------------------------------------------------------
+# 聚合问句：问的是"谁/哪些人"，答案本身就是实体集合
+#
+# 这类句式**天然没有主语实体**，所以不能套用上面的 can_use_rules（要求恰好 1 个实体）。
+# 但它们的谓词极其固定，误判风险反而更低。
+#
+# 实测背景（C009"养猫的是哪几个人"）：LLM 改写后变成"养猫的人有哪些"，
+# 规则没命中、实体又是 0 个，只能交给模型随机判——同一道题时通时不通。
+# 这不是模型的问题，是规则层缺了这一类。
+# ----------------------------------------------------------------------
+AGGREGATE_RULES: Tuple[Tuple[str, "re.Pattern[str]"], ...] = (
+    # 谁养了X / 谁养的X / 哪几个人养了X
+    ("agg_pet", re.compile(
+        r"谁(?:家)?养了|谁(?:家)?养的|(?:哪几个|哪些|什么)人.{0,6}养"
+    )),
+    # 养X的是哪几个人 / 养X的人有哪些
+    ("agg_pet_rev", re.compile(
+        r"养(?:了)?.{1,8}的(?:是)?(?:谁|哪几个|哪些人|哪几个人)|"
+        r"养.{1,8}的人(?:有|是)(?:哪些|谁|哪几)"
+    )),
+)
+
+
+def rule_aggregate(query: str) -> Tuple[bool, str]:
+    """判断是否聚合问句。返回 `(是否命中, 规则名)`。"""
+    if not query:
+        return False, ""
+    for name, pattern in AGGREGATE_RULES:
+        if pattern.search(query):
+            return True, name
+    return False, ""
+
+
 def can_use_rules(entities: Sequence[str]) -> bool:
     """规则是否可用：只有恰好一个实体时才可信。
 
@@ -96,8 +129,15 @@ def decide(query: str, entities: Sequence[str]) -> Tuple[bool, str, bool]:
     依据的三种取值，会原样进日志：
       · `rule:<name>` —— 规则命中，省掉一次模型往返
       · `llm`        —— 规则判不了，回退模型（原路径，零行为变化）
+      · `rule:agg_*` —— 聚合问句（谁养了X / 养X的是哪几个人），不需要实体
       · `no_ent`     —— 没有唯一实体，规则不适用，回退模型
     """
+    # 聚合问句先判：它问的就是"哪些人"，本来就没有主语实体，
+    # 不能用 can_use_rules 卡。离线 48 题验证只命中真·聚合题，零误伤。
+    agg_hit, agg_name = rule_aggregate(query)
+    if agg_hit:
+        return True, f"rule:{agg_name}", False
+
     if not can_use_rules(entities):
         return False, "no_ent", True
 
