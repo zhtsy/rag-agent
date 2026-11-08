@@ -163,13 +163,16 @@ CYPHER_GENERATION_TEMPLATE = """任务：根据用户的问题，生成一个 Ne
      错误： MATCH (pet:宠物) WHERE pet.type = "猫" RETURN properties(pet)
    但"品种本身可能就是类别"——拿铁的品种就是"猫"，代码的品种是"橘猫"，
    所以必须用 `-[:属于类别*0..1]->` 同时兼容 0 跳和 1 跳，否则会漏掉橘猫那种人：
-     MATCH (p:人物)-[:养了]->(pet)-[:品种是*0..1]->(b)-[:属于类别*0..1]->(cat:类别)
+     MATCH (p:人物)-[:养了]->(pet)-[:品种是|属于*0..1]->(b)-[:属于类别*0..1]->(cat)
      WHERE cat.id = "猫"
      RETURN properties(p) AS person, properties(pet) AS pet
    `品种是` 也必须写成 `*0..1`，不能写死 1 跳：只有建过 `品种是` 边的库才有这一跳，
    而只做了一层 `属于类别` 的库（本地/旧库）根本没有这个关系类型，
    写死 1 跳会让**整条链匹配 0 行**——实测「谁养了猫」就是这么被拒答的
    （graph 阶段跑了 899ms 返回空，随后降级向量也落空，最终 sources=0）。
+   终点同样**不能限定标签**：仓鼠节点的标签是 `宠物`、不是 `类别`，
+   写成 `(cat:类别)` 会把「谁养了仓鼠」整条链判死
+   （2026-11-08 实测：C007「谁养了仓鼠」、C009「养猫的是哪几个人」两条 0 分都源于此）。
    聚合结果**不要只返回一类节点**：人和宠物都要返回，否则答案只能说出其中一半。
 9. 【问"养了什么宠物"时，品种必须一起带出来】品种不在 pet 节点的属性里，而是挂在边上：
    `pet-[:品种是|属于]->品种`。只写 `RETURN properties(pet)` 会丢掉品种，
@@ -196,7 +199,7 @@ Cypher: MATCH (g {{id: "加里奥"}})-[:`由...制成`]->(material) RETURN prope
 
 示例5（聚合问法：问题里没有人名，且品种要归到类别，两跳都用 *0..1 兼容"品种即类别"和"没有品种是边"）：
 用户问：养猫的是哪几个人？
-Cypher: MATCH (p:人物)-[:养了]->(pet)-[:品种是*0..1]->(b)-[:属于类别*0..1]->(cat:类别) WHERE cat.id = "猫" RETURN properties(p) AS person, properties(pet) AS pet
+Cypher: MATCH (p:人物)-[:养了]->(pet)-[:品种是|属于*0..1]->(b)-[:属于类别*0..1]->(cat) WHERE cat.id = "猫" RETURN properties(p) AS person, properties(pet) AS pet
 
 现在，请为以下问题生成 Cypher：
 用户问：{question}
@@ -367,11 +370,43 @@ def _merge_entities(raw: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
 
 def _render_entity(ent: Dict[str, Any]) -> str:
-    """豆豆（金毛）；没属性就只给名字。"""
-    if ent.get("attrs"):
-        return f"{ent['name']}（{'，'.join(ent['attrs'])}）"
-    return ent["name"]
+    """把实体渲染成自然中文，避免"名字被当成修饰"。
 
+    实测（qwen2.5:7b，temperature=0，各 3 次）：
+        小李养了「代码」（品种：橘猫）。   0/3   ← 同位语，模型答"一只橘猫"，名字丢了
+        小李养了名为「代码」的橘猫。       3/3
+        小李养了一只橘猫，名叫「代码」。   3/3
+
+    所以有「品种」时改用"名为X的Y"：X 成了中心语的限定成分，模型必须保留。
+    其它属性（职位、类型）仍用括号，免得把"小陈（职位：儿科医生）"写成怪句子。
+    """
+    attrs = ent.get("attrs") or []
+    if not attrs:
+        return ent["name"]
+
+    breed = next((a for a in attrs if a.startswith("品种：")), None)
+    if breed:
+        kind = breed[len("品种："):]
+        rest = [a for a in attrs if a is not breed]
+        tail = f"（{'，'.join(rest)}）" if rest else ""
+        return f"名为「{ent['name']}」的{kind}{tail}"
+
+    return f"「{ent['name']}」（{'，'.join(attrs)}）"
+
+
+# 关系名 → 属性标注前缀。
+# 直接写 "品种是橘猫" 会让模型复述成"「代码」是品种是橘猫"，语法重复；
+# 写成 "品种：橘猫" 是标注，不会被当句子拼接。
+_REL_LABELS = {
+    "品种是": "品种：",
+    "类型是": "类型：",
+    "职位是": "职位：",
+    "属于类别": "类别：",
+}
+
+
+def _rel_label(rel: str) -> str:
+    return _REL_LABELS.get(rel, f"{rel}：" if rel else "")
 
 # 只认"明确的归类关系"。
 # 绝对不要加「属于」：图谱里它被复用得极宽——小刘属于校篮球队、片儿川属于杭州、
@@ -399,7 +434,7 @@ def _enrich_entity_attrs(entities: List[Dict[str, Any]], sources: set) -> None:
     try:
         rows = graph.query(
             "MATCH (n)-[r]->(m) WHERE n.id IN $names AND type(r) IN $rels "
-            "RETURN n.id AS n, m.id AS m, m.source AS src",
+            "RETURN n.id AS n, m.id AS m, m.source AS src, type(r) AS rel",
             {"names": names, "rels": list(_TYPE_RELS)},
         )
     except Exception as e:  # noqa: BLE001
@@ -416,7 +451,10 @@ def _enrich_entity_attrs(entities: List[Dict[str, Any]], sources: set) -> None:
         have = {a.casefold() for a in ent.get("attrs") or []}
         if val.casefold() in have:
             continue
-        ent.setdefault("attrs", []).append(val)
+        # 带上关系名：写成"品种是橘猫"，而不是裸的"橘猫"——
+        # 裸值会让模型以为橘猫是并列的另一只宠物。
+        rel = str(row.get("rel") or "").strip()
+        ent.setdefault("attrs", []).append(f"{_rel_label(rel)}{val}" if rel else val)
         added += 1
         if row.get("src"):
             _add_sources(row["src"], sources)
@@ -424,6 +462,76 @@ def _enrich_entity_attrs(entities: List[Dict[str, Any]], sources: set) -> None:
     if added:
         logger.info(f"🧷 实体归类属性补全：+{added} 条（{', '.join(names[:5])}…）")
 
+
+# 品种链上允许折叠的关系。只认这两类明确归类的边：
+# 「属于」复用太宽（小刘属于校篮球队、片儿川属于杭州），用它折叠会把无关实体吞进来。
+_FOLD_RELS = ("品种是", "属于类别")
+_FOLD_MAX_DEPTH = 3
+
+
+def _fold_breed_chain(entities: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """把「品种 / 类别」折叠进所属实体，避免并列成多只宠物。
+
+    这不是排版问题：Cypher 一次返回 pet + 品种 + 类别时，三个节点被平铺成
+    三个并列实体，事实句变成
+        小李养了「代码」（品种：橘猫）、猫。
+    模型无从判断"猫"是类别还是另一只宠物，实测答成"小李的猫叫橘猫"。
+    折叠成 `小李养了「代码」（品种：橘猫，类别：猫）`，歧义才消失。
+
+    实现用一条 `*1..3` 变长路径拿全部后代——品种链常有中间节点
+    （代码→橘猫→猫），按单跳边表自己走 BFS 会在中间节点处断掉。
+    只读，失败静默。
+    """
+    if len(entities) < 2:
+        return entities
+
+    names = [e["name"] for e in entities if e.get("name")]
+    if len(names) < 2:
+        return entities
+
+    try:
+        rows = graph.query(
+            # 变长路径一次取全：中间节点（橘猫）不要求出现在 $names 里。
+            "MATCH (a)-[r:品种是|属于类别*1..%d]->(b) WHERE a.id IN $names "
+            "RETURN a.id AS a, b.id AS b, type(last(r)) AS rel" % _FOLD_MAX_DEPTH,
+            {"names": names},
+        )
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"⚠️ 品种链折叠查询失败（忽略，不影响主结果）: {e}")
+        return entities
+
+    by_name = {e["name"].casefold(): e for e in entities if e.get("name")}
+    desc: Dict[str, List[tuple]] = {}
+    for row in rows or []:
+        a = str(row.get("a") or "").strip()
+        b = str(row.get("b") or "").strip()
+        rel = str(row.get("rel") or "").strip()
+        if a and b and b.casefold() in by_name:
+            desc.setdefault(a.casefold(), []).append((b, rel))
+
+    folded = set()
+    for ent in entities:
+        key = ent["name"].casefold()
+        if key in folded:
+            continue
+        real = desc.get(key) or []
+        if not real:
+            continue
+
+        attrs = list(ent.get("attrs") or [])
+        have = {a.casefold() for a in attrs}
+        for d, rel in real:
+            label = f"{_rel_label(rel)}{d}" if rel else d
+            if label.casefold() not in have:
+                attrs.append(label)
+                have.add(label.casefold())
+            folded.add(d.casefold())
+        ent["attrs"] = attrs
+
+    if folded:
+        logger.info(f"🧬 品种链折叠：{len(folded)} 个节点并入属性")
+
+    return [e for e in entities if e["name"].casefold() not in folded]
 
 # 定义性关系：能回答"它是什么／由什么制成"这类**固有属性**问题的关系类型。
 # 刻意不包含：
@@ -475,11 +583,31 @@ def entity_facts(names: List[str], max_total: int = 6) -> List[str]:
             continue
         seen.add(key)
         per_entity[n] = per_entity.get(n, 0) + 1
-        out.append(f"{n} {rel} {m}")
+        out.append(_render_fact(n, rel, m))
         if len(out) >= max_total:
             break
     return out
 
+
+# 关系名的「可读化」模板：把值填进 `...` 的位置。
+# 只列真的带占位符的关系，其它原样输出（`住在`、`养了` 直接读得通）。
+_REL_TEMPLATES = {
+    "由...制成": "由 {m} 制成",
+    "由…制成": "由 {m} 制成",
+}
+
+
+def _render_fact(subject: str, rel: str, obj: str) -> str:
+    """把三元组渲染成一句能直接读的话。
+
+    默认 `主语 关系 宾语`；关系名带 `...` 的按模板填值：
+        ("加里奥", "由...制成", "禁魔石") → "加里奥 由 禁魔石 制成"
+    这样模型不必猜 `...` 是什么。
+    """
+    tpl = _REL_TEMPLATES.get(rel)
+    if tpl:
+        return f"{subject} {tpl.format(m=obj)}"
+    return f"{subject} {rel} {obj}"
 
 def _answer_from_rows(question: str, rows: List[Dict[str, Any]]) -> str:
     if not rows:
@@ -550,6 +678,9 @@ def search_knowledge_graph(query: str, original_query: str = "") -> str:
         # ★ 补一跳归类属性：Cypher 常只写一跳，把"布丁是什么"漏在第二跳，
         #   不补的话事实句就是"小张养了布丁"，答案必然丢"仓鼠"。
         _enrich_entity_attrs(entities, sources)
+        # ★ 折叠品种链：宠物/品种/类别是三层，平铺会变成"多只宠物"。
+        #   实测「小李的猫叫什么名字」因而答成"叫橘猫"。
+        entities = _fold_breed_chain(entities)
         uniq_names = [e["name"] for e in entities]
         clean_text = "，".join(uniq_names) if uniq_names else "无明确实体"
         fact_text = "、".join(_render_entity(e) for e in entities) if entities else clean_text
