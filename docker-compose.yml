@@ -31,7 +31,10 @@ services:
       - "127.0.0.1:3306:3306"
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p051585913885w"]
+      # 口令不能写在这里：compose 文件和 docker inspect 都会把字面量暴露出来。
+      # $$ 由 compose 转义成 $，交给容器内 shell 展开，值来自上面 environment 的
+      # MYSQL_ROOT_PASSWORD —— 配置里只留变量名，不出现口令本身。
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u root -p$$MYSQL_ROOT_PASSWORD"]
       interval: 5s
       timeout: 5s
       retries: 10

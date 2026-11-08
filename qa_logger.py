@@ -5,18 +5,19 @@ QA Logger - 无侵入式问答记录模块 (MySQL版)
 """
 import json
 import csv
-import os
 from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any
 
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
-# 从环境变量读取数据库连接，回退到本地 MySQL
-DATABASE_URL = os.environ.get(
-    "DATABASE_URL",
-    "mysql+pymysql://rag_user:051585913885w@127.0.0.1:3306/rag_qa?charset=utf8mb4"
-)
+# 口令只从环境变量（.env / compose 的 environment）读取。
+# 这里原来内嵌了带口令的默认连接串：等于把库密码写进 git 历史，删都删不干净
+# （同一个错误在 admin_app.py 犯过一次，改完这里才想起还漏了一处）。
+# 统一走 settings.py，与其他模块共用同一个读取点。
+from settings import require_database_url
+
+DATABASE_URL = require_database_url()
 
 engine = create_engine(
     DATABASE_URL,
