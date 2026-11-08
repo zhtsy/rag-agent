@@ -1,12 +1,33 @@
-# RAG 知识库问答系统
+<p align="center">
+  <img src="docs/images/logo.svg" width="112" alt="RAG 知识库问答系统">
+</p>
 
-[![CI](https://github.com/zhtsy/rag-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/zhtsy/rag-agent/actions/workflows/ci.yml)
-[![Python 3.12](https://img.shields.io/badge/python-3.12-3776AB?logo=python&logoColor=white)](https://www.python.org/)
-[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+<h1 align="center">RAG 知识库问答系统</h1>
 
-> **库里有什么就答什么，没有就说没有，每句话都能指回出处。**
-> 三路混合检索（Chroma 向量 / BM25 关键词 / Neo4j 图谱）+ CPU 重排 + SSE 真流式 + 多层护栏。
-> 单机 2 vCPU / 3.5 GiB、5 个容器跑通全栈，Python 约 9000 行。
+<p align="center">
+  <b>库里有什么就答什么，没有就说没有，每句话都能指回出处。</b><br>
+  三路混合检索（Chroma 向量 / BM25 / Neo4j 图谱）· CPU 重排 · SSE 真流式 · 多层护栏<br>
+  单机 2 vCPU / 3.5 GiB · 5 个容器 · Python 约 9000 行
+</p>
+
+<p align="center">
+  <a href="https://github.com/zhtsy/rag-agent/actions/workflows/ci.yml"><img src="https://github.com/zhtsy/rag-agent/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://m8ven.ai/mcp/zhtsy-rag-agent-mbudvh?s=readme"><img src="https://m8ven.ai/badge/mcp/zhtsy-rag-agent-mbudvh?v=42ca96884347357d6ea67d17a3beb5cc" alt="M8ven Score"></a>
+  <img src="https://img.shields.io/badge/python-3.12-3776AB?logo=python&logoColor=white" alt="Python 3.12">
+  <img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License: MIT">
+</p>
+
+---
+
+## 它是干什么的
+
+往一堆自己的文档里提问，它答得出、答得对，而且每句话后面都能点回原文；库里没有的，它就说没有。
+
+这个项目是从一句很具体的抱怨开始的：**为什么问它文档里的东西它答不上来，却敢一本正经地编？**
+后来越做越发现，难的不是让它答得出，是让它在该闭嘴的时候闭嘴。所以一半以上的时间
+其实花在评测和排查上——`CASE_STUDY.md` 记的就是几次被自己的数据打脸的经过。
+
+## 结论
 
 | 看什么 | 结论 |
 |---|---|
@@ -16,7 +37,16 @@
 | 性能（单机 2 vCPU） | 有实体过滤 3.68 s；同问缓存命中 0.86 s（4.3×）；并发饱和点 4 |
 | 数据规模 | 145 个向量块 / 741 实体 / 882 条关系（本地复刻环境） |
 
-三十秒跑起来：
+## 它不擅长什么（先说清楚，省得你试完再失望）
+
+- **域外问题它可能还是会答。** 检索层能正确判空、把 `sources` 置空，但模型有时仍会用
+  自己的常识答一段，`status` 会标成 `ungrounded`——**标得出来，但没拦住**。
+  硬拒答会把「资料没写但能推理」的题一起打死，我选了留这个洞并写在明处。
+- **只为私有小语料设计。** 现在的分块、图谱抽取、重排都是按几百张文本卡片调的，
+  换成十万级文档要改架构，不是调参能解决。
+- **单机吞吐就 0.8 req/s 左右。** 并发 4 是实测饱和点，超了只是排队更久。
+
+## 三十秒跑起来
 
 ```bash
 cp .env.example .env      # 填 Neo4j / MySQL 口令与 DeepSeek key
@@ -24,7 +54,9 @@ docker compose up -d
 curl -s localhost:8000/health
 ```
 
-### 这套系统真正在解决的问题
+## 几个绕不开的取舍
+
+这五条是整套设计里真正被数据逼出来的决定，其它都能改，这几条改不动。
 
 1. **检索入口只有一个。** 图谱查不出东西就自动降级到向量 + BM25，不让模型自己挑工具——
    它挑错的时候，你在日志里看不见。
@@ -76,6 +108,13 @@ data: [DONE]
 
 数据流：
 
+<p align="center">
+  <img src="docs/images/architecture.svg" alt="数据流：用户提问 → 工具决策 → 唯一检索入口 → 图谱 / 混合检索 → 重排 → 流式输出" width="880">
+</p>
+
+<details>
+<summary>同一张图的纯文本版（方便复制、也方便 grep）</summary>
+
 ```
 用户提问
   └─ 工具决策（LLM 判断要不要检索）
@@ -86,6 +125,8 @@ data: [DONE]
                  └─ reranker 精排（候选截断到 6 个，控制 CPU 延迟）
                       └─ 流式生成 → 引用来源 / 置信度 / 事实核查
 ```
+
+</details>
 
 ---
 

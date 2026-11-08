@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="RAG 知识库问答系统">
+  <title>RAG 知识库问答系统</title>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#4F46E5"/>
+      <stop offset="0.55" stop-color="#3B5BDB"/>
+      <stop offset="1" stop-color="#0891B2"/>
+    </linearGradient>
+    <linearGradient id="ink" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#3730A3"/>
+      <stop offset="1" stop-color="#0E7490"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="512" height="512" rx="116" fill="url(#bg)"/>
+
+  <path d="M152 96 H360 A56 56 0 0 1 416 152 V296 A56 56 0 0 1 360 352 H232 L168 410 V352 H152 A56 56 0 0 1 96 296 V152 A56 56 0 0 1 152 96 Z"
+        fill="#FFFFFF"/>
+
+  <g stroke="url(#ink)" stroke-width="14" stroke-linecap="round" fill="none">
+    <path d="M176 214 L336 214"/>
+    <path d="M176 214 L256 286"/>
+    <path d="M336 214 L256 286"/>
+  </g>
+
+  <g fill="url(#ink)">
+    <circle cx="176" cy="214" r="25"/>
+    <circle cx="336" cy="214" r="25"/>
+    <circle cx="256" cy="286" r="25"/>
+  </g>
+</svg>
