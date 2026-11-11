@@ -34,7 +34,13 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 from loguru import logger
 
-from rag_agent import stream_conversation, aget_session_meta, search_knowledge_base
+from rag_agent import (
+    stream_conversation,
+    aget_session_meta,
+    finalize_turn,
+    search_knowledge_base,
+)
+from memory_context import resolve_session_id
 from api_auth import api_key as _configured_api_key
 from answer_guard import completeness_supplement
 import evidence as _evidence   # 检索字符串 → 结构化证据；/search 与 MCP 共用，零依赖可单测
@@ -136,6 +142,11 @@ app.add_middleware(
 class ChatRequest(BaseModel):
     message: str
     session_id: Optional[str] = "default_session"
+    # 长期记忆的身份维度。不传 = 只用会话短期记忆（老客户端/评测脚本行为不变）。
+    user_id: Optional[str] = Field(
+        default=None,
+        description="用户唯一标识。传了才有跨会话长期记忆；不传则只做会话内短期记忆。",
+    )
 
 
 class SearchRequest(BaseModel):
@@ -243,10 +254,23 @@ def require_api_key(request: Request) -> None:
 
 
 # =====================================================================
+# 2.8 会话 ID 兜底（修"所有人共用一个 default_session"）
+# =====================================================================
+def _resolve_session_id(req_session_id: Optional[str], request: Request) -> str:
+    """决定这次请求落到哪个会话（逻辑在 memory_context，可单测，见 tests/）。"""
+    return resolve_session_id(
+        req_session_id or "",
+        client_host=request.client.host if request.client else "",
+        user_agent=request.headers.get("user-agent", ""),
+        forwarded_for=request.headers.get("x-forwarded-for", ""),
+    )
+
+
+# =====================================================================
 # 3. 流式对话接口（完全保持原样，未做任何改动）
 # =====================================================================
 @app.post("/chat/stream", dependencies=[Depends(require_api_key)])
-async def chat_stream_endpoint(request: ChatRequest):
+async def chat_stream_endpoint(request: ChatRequest, http_request: Request):
     """
     流式接口（SSE）。
 
@@ -280,8 +304,12 @@ async def chat_stream_endpoint(request: ChatRequest):
       排满后最多等 `RAG_QUEUE_WAIT` 秒（默认 8），等不到直接回 **429**
       （带 `Retry-After: 5`），而不是让请求无限排队把 P95 拖到不可用。
     """
-    session_id = request.session_id or "default_session"
-    logger.info(f"📥 [stream] 收到请求(session={session_id[:8]}): {request.message}")
+    session_id = _resolve_session_id(request.session_id, http_request)
+    user_id = (request.user_id or "").strip()
+    logger.info(
+        f"📥 [stream] 收到请求(session={session_id[:8]}"
+        f"{', user=' + user_id[:8] if user_id else ''}): {request.message}"
+    )
 
     # ★ 请求级计时起点。在端点里 start()（而不是在生成器里），
     #   是因为 ContextVar 一旦在这条请求的上下文里设好，后面 create_task /
@@ -327,7 +355,7 @@ async def chat_stream_endpoint(request: ChatRequest):
         pieces: List[str] = []
 
         try:
-            async for chunk in stream_conversation(request.message, session_id):
+            async for chunk in stream_conversation(request.message, session_id, user_id=user_id):
                 if not chunk:
                     continue
                 pieces.append(chunk)
@@ -384,6 +412,17 @@ async def chat_stream_endpoint(request: ChatRequest):
                 await asyncio.sleep(0.01)
         except Exception as e:  # noqa: BLE001
             logger.warning(f"⚠️ 下发收尾元信息失败: {e}")
+
+        # ---- 记忆落库：必须在 [DONE] 之前 ----
+        # 踩过的坑：一开始放在 [DONE] 之后，结果前端收到 [DONE] 就关连接，
+        # uvicorn 立刻取消这个生成器，yield 之后那几行**一次都没执行过**——
+        # 表现是"对话正常、数据库永远空"，而且日志里一条错误都没有。
+        # 这几步都是毫秒级（读一次 state + 两条 insert），放在这里不影响体感；
+        # 真正耗时的用户事实抽取是后台任务，不在这条链路上。
+        try:
+            await finalize_turn(session_id, request.message, user_id=user_id, meta=meta)
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f"⚠️ 记忆收尾失败（不影响本轮回答）: {type(e).__name__}: {e}")
 
         # 一行 JSON 汇总本轮：{rid, total_ms, stages{decide/retrieve/rerank/llm}, ttft_ms, ...}
         # 打在这里而不是在 finally 里，是为了让 total_ms 覆盖到最后一次 yield。

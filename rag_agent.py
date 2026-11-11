@@ -7,7 +7,9 @@ A. 真流式（双模型策略）：阶段1 用 bind_tools 的模型 ainvoke 做
    阶段2 用**不绑工具**的 local_llm_stream 做 astream 生成，边生成边推 _TOKEN_BUS；
    stream_conversation 只从队列取。彻底绕开 Ollama 在 bind_tools 下吞 token 流的坑。
 B. 强制工具调用：只要用户问题里出现已知实体，代码直接伪造检索请求，不给 7B 偷懒的机会。
-C. 精简上下文：只保留 2 个检索工具；历史只留最近 3 轮（6 条），历史 AI 内容截断到 50 字。
+C. 精简上下文：只保留 2 个检索工具；历史只留最近 3 轮（6 条），历史 AI 内容按句截断到 160 字。
+D. 记忆：会话轮次与实体记忆落 MySQL（重启/换 worker 后回填），
+   并按 user_id 存取用户级长期事实（memory_store.py）。
 """
 
 import asyncio
@@ -52,6 +54,16 @@ import retrieval_cache as _retrieval_cache
 # 路由的规则快速路径。同样零依赖、可进 CI（tests/test_retrieval_router.py）。
 # 它替代的是"每次检索都发一次 DeepSeek 判意图"——实测那一步 1130ms。
 import retrieval_router as _router
+
+# 记忆：持久化层（MySQL）+ 纯函数（截断/渲染/抽取解析）。
+# 两个模块都不 import 本文件，所以能被 pytest 直接测（见 tests/test_memory_*.py）。
+import memory_store as _mem
+from memory_context import (
+    build_extract_prompt,
+    parse_facts,
+    render_long_term_block,
+    smart_truncate,
+)
 
 # ========== 1. 环境配置 ==========
 # 这台机器是 2 vCPU（1 核 2 线程）。原来硬编码 1 线程，reranker 在 CPU 上完全串行：
@@ -155,8 +167,27 @@ SEARCH_TOOLS = {"search_knowledge_base", "search_knowledge_graph"}
 
 # 送给大模型的历史窗口（消息条数）：最近 3 轮 = 6 条
 MAX_HISTORY_MESSAGES = 6
-# 历史 AI 消息只保留前 N 个字，防止 ctx 爆掉导致模型失忆
-HISTORY_AI_CHARS = 50
+# 历史 AI 消息保留字数。
+# 原来是 50：实测一问"布丁是什么品种、几岁"再追问"它几岁"，上一轮的年龄正好被截掉，
+# 模型只能重新检索——问的是同一件事，却像换了个新人。
+# 提到 160 仍然安全：3 轮 × (问题 ~30 + 答案 160) ≈ 570 字，而 num_ctx=2048。
+HISTORY_AI_CHARS = 160
+# 进程重启 / 换 worker 后，从 MySQL 回填最近几轮历史
+HYDRATE_TURNS = 3
+# 长期记忆：每次最多注入几条、多久过期、单块最多多少字
+LONG_TERM_MAX_FACTS = 8
+LONG_TERM_TTL_DAYS = 180
+LONG_TERM_MAX_CHARS = 320
+# 同一个用户连续提问时不要每轮都查库，缓存 60 秒
+_LONG_TERM_CACHE_TTL = 60.0
+_LONG_TERM_CACHE: Dict[str, tuple] = {}
+
+# 长期记忆总开关：评测环境建议关掉（RAG_LTM_ENABLED=0），
+# 因为它会多打一次 LLM 抽取，且抽取结果无法参与评分。
+_LTM_ENABLED = (os.getenv("RAG_LTM_ENABLED", "1").strip().lower()
+                not in {"0", "false", "off", "no"})
+# 抽取调用用的模型："cloud"=DeepSeek（默认，贵一点但准）/"local"=本地 Qwen
+_LTM_EXTRACT_PROVIDER = (os.getenv("RAG_LTM_EXTRACT_PROVIDER") or "cloud").strip().lower()
 
 
 def _extract_entities(text: str) -> List[str]:
@@ -179,6 +210,18 @@ def _rewrite_pronoun(text: str, entities: List[str]) -> str:
     if not text or not entities:
         return text
     return _PRONOUN_RE.sub(entities[0], text, count=1)
+
+
+def _remember_entities(thread_id: str, entities: List[str]) -> None:
+    """更新会话实体记忆——内存一份（快），MySQL 一份（重启后还在）。
+
+    只写内存的话，后端一重启 `_ENTITY_MEMORY` 就是空的，
+    用户接着说"它的品种呢"，代词就再也解析不出来了——这是最容易被忽略的记忆断点。
+    """
+    if not thread_id or not entities:
+        return
+    _ENTITY_MEMORY[thread_id] = entities
+    _mem.save_entities(thread_id, entities)
 
 
 # ========== 4. 定义工具（只保留两个核心检索工具） ==========
@@ -721,13 +764,60 @@ def _thread_id_of(config) -> str:
     return "default"
 
 
+def _user_id_of(config) -> str:
+    """取当前请求的 user_id。
+
+    user_id 由接口层透传（configurable.user_id）。**没有 user_id 就没有长期记忆**：
+    没有身份这个维度，"跨会话记住你"在技术上无从谈起，硬做只能靠猜。
+    """
+    try:
+        if isinstance(config, dict):
+            return (config.get("configurable", {}).get("user_id") or "").strip()
+    except Exception:  # noqa: BLE001
+        pass
+    return ""
+
+
+def _long_term_block(user_id: str) -> str:
+    """取该用户的长期记忆并渲染成可注入的文字（带 60 秒进程内缓存）。
+
+    为什么要缓存：同一轮问答会进 agent_node 两次（决策后回到生成），
+    再加上多轮对话，不缓存就变成"每句话都查一次 user_memories"。
+    代价是新写入的记忆最多晚 60 秒才生效——所以抽取成功后我们会主动清缓存。
+    """
+    if not _LTM_ENABLED or not user_id:
+        return ""
+
+    now = time.time()
+    cached = _LONG_TERM_CACHE.get(user_id)
+    if cached and now - cached[0] < _LONG_TERM_CACHE_TTL:
+        return cached[1]
+
+    try:
+        memories = _mem.load_user_memories(
+            user_id, limit=LONG_TERM_MAX_FACTS, days=LONG_TERM_TTL_DAYS
+        )
+    except Exception as e:  # noqa: BLE001
+        # 记忆是增强项，读不到就当没有，绝不影响本轮回答
+        logger.warning(f"⚠️ 读取长期记忆失败（忽略）: {e}")
+        memories = []
+
+    block = render_long_term_block(memories, max_chars=LONG_TERM_MAX_CHARS)
+    if len(_LONG_TERM_CACHE) > 256:      # 极简 LRU：防止长期运行后无限增长
+        _LONG_TERM_CACHE.clear()
+    _LONG_TERM_CACHE[user_id] = (now, block)
+    if block:
+        logger.info(f"🧠 注入长期记忆 {len(memories)} 条（user={user_id[:8]}）")
+    return block
+
+
 # ---- 历史压缩：既省 token（num_ctx=2048），也是防串台的第一道闸门 ----
 def _compress_history(messages: Sequence[BaseMessage], max_messages: int = MAX_HISTORY_MESSAGES) -> List[BaseMessage]:
     """
-    【核心修复 C】历史只保留最近 3 轮（6 条消息）：
+    历史只保留最近 3 轮（6 条消息），并且**按句截断**而不是硬切：
     - 历史 ToolMessage            → 直接丢（几 KB 检索原文，是串台和爆 ctx 的元凶）
     - 历史 AIMessage(tool_calls)  → 直接丢（成对丢弃，避免孤立 ToolMessage 被 API 拒绝）
-    - 历史 AIMessage(JSON 答案)   → 只保留 content[:50]
+    - 历史 AIMessage(正文答案)    → 保留前 HISTORY_AI_CHARS 字，尽量断在句末
     - 当前轮（最后一条 HumanMessage 之后）→ 原样保留
     """
     if not messages:
@@ -752,7 +842,7 @@ def _compress_history(messages: Sequence[BaseMessage], max_messages: int = MAX_H
                 continue
             text = _extract_answer_text(m.content if isinstance(m.content, str) else "")
             if text:
-                history.append(AIMessage(content=text[:HISTORY_AI_CHARS]))
+                history.append(AIMessage(content=smart_truncate(text, HISTORY_AI_CHARS)))
             continue
         if isinstance(m, HumanMessage):
             history.append(HumanMessage(content=m.content))
@@ -981,7 +1071,7 @@ def _stamp_original_query(tool_calls: list, last_user_msg: str, thread_id: str) 
 
     # 会话实体记忆：只有本轮出现了实体才更新（追问时仍可复用上一轮）
     if current_entities:
-        _ENTITY_MEMORY[thread_id] = current_entities
+        _remember_entities(thread_id, current_entities)
         logger.info(f"🧷 会话[{thread_id[:8]}]实体记忆更新为: {current_entities}")
 
     return tool_calls
@@ -1021,7 +1111,7 @@ async def agent_node(state: AgentState, config: RunnableConfig = None):
                 f"⚠️ 命中已知实体 {entities}（{'代词回指' if use_memory else '直接命中'}），"
                 f"代码强制注入检索请求！query={search_query!r}"
             )
-            _ENTITY_MEMORY[thread_id] = entities
+            _remember_entities(thread_id, entities)
             return {"messages": [
                 AIMessage(content="", tool_calls=[_forge_tool_call(search_query, last_user_msg)])
             ]}
@@ -1047,7 +1137,7 @@ async def agent_node(state: AgentState, config: RunnableConfig = None):
         if decision is None and _dg.requires_retrieval(last_user_msg):
             forced_query = _dg.strip_retrieval_prefix(last_user_msg)
             if current_entities:
-                _ENTITY_MEMORY[thread_id] = current_entities
+                _remember_entities(thread_id, current_entities)
             logger.warning(
                 f"⚠️ 用户显式要求查库，但模型没给检索请求，代码兜底强制注入"
                 f"query={forced_query!r}"
@@ -1069,9 +1159,12 @@ async def agent_node(state: AgentState, config: RunnableConfig = None):
     # ==============================================================
     logger.info("💧 阶段2：纯流式生成（不绑定工具，逐 token 推送）")
 
-    system_prompt = SystemMessage(
-        content=SYSTEM_PROMPT_ANSWER_WITH_DOCS if already_retrieved else SYSTEM_PROMPT_ANSWER_NO_DOCS
-    )
+    base_prompt = SYSTEM_PROMPT_ANSWER_WITH_DOCS if already_retrieved else SYSTEM_PROMPT_ANSWER_NO_DOCS
+    # 长期记忆只拼在**生成阶段**，不参与检索决策：
+    # 如果把它塞进决策 prompt，模型很容易把"用户上次问过川菜"当成"这次也要查川菜"，
+    # 而 query 一旦被历史污染，向量召回就会跑偏（这是串台最隐蔽的一种形态）。
+    _ltm = _long_term_block(_user_id_of(config))
+    system_prompt = SystemMessage(content=f"{_ltm}\n\n{base_prompt}" if _ltm else base_prompt)
 
     cleaner = _AnswerStreamCleaner()
     chunks: List[AIMessageChunk] = []
@@ -1454,8 +1547,158 @@ def _finalize_conversation(result):
     return _build_answer_meta(turn_messages, raw_content, with_faithfulness=True)
 
 
+# ========== 11.5 记忆：持久化回填 + 长期记忆抽取 ==========
+async def _seed_messages(thread_id: str) -> List[BaseMessage]:
+    """进程重启 / 换 worker 后，把持久化下来的最近几轮补回本轮输入。
+
+    为什么不直接 `aupdate_state`：
+        那个 API 会顺带决定"下一个该跑哪个节点"，状态更新完再 ainvoke，
+        新输入有可能被当成"图已经结束"而丢掉，表现是"用户说话没反应"。
+        所以改成把历史**拼在本轮输入前面**——空状态的时候，这和正常多轮完全等价，
+        不空的时候我们压根不拼（下面 existing 判断），没有任何副作用。
+    """
+    if not _mem.enabled_for(thread_id):
+        return []
+
+    config = {"configurable": {"thread_id": thread_id}}
+    try:
+        snapshot = await app.aget_state(config)
+        existing = (getattr(snapshot, "values", None) or {}).get("messages") or []
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"⚠️ 读取会话状态失败，跳过历史回填: {e}")
+        return []
+
+    if existing:
+        return []          # 进程内还有完整状态，不需要回填
+
+    try:
+        turns = _mem.load_recent_turns(thread_id, limit=HYDRATE_TURNS)
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"⚠️ 读取持久化历史失败（忽略）: {e}")
+        return []
+    if not turns:
+        return []
+
+    seed: List[BaseMessage] = []
+    for t in turns:
+        q = (t.get("question") or "").strip()
+        a = (t.get("answer") or "").strip()
+        if q and a:
+            seed.append(HumanMessage(content=q))
+            seed.append(AIMessage(content=a))
+
+    # 实体记忆也一起恢复，否则"它的品种呢"这类追问在重启后一定断
+    try:
+        ents = _mem.load_entities(thread_id)
+        if ents:
+            _ENTITY_MEMORY[thread_id] = ents
+    except Exception:  # noqa: BLE001
+        pass
+
+    if seed:
+        logger.info(
+            f"🧷 会话[{thread_id[:8]}] 无内存状态，从持久化记忆回填 {len(seed) // 2} 轮历史"
+        )
+    return seed
+
+
+_EXTRACT_TASKS: set = set()
+
+
+def _schedule_extraction(user_id: str, session_id: str, question: str, answer: str) -> None:
+    """后台抽取用户长期事实。
+
+    为什么要后台：抽取是一次完整的 LLM 调用（0.8~2s），放在响应链路上
+    等于让用户白等这一两秒，而这批事实**这一轮根本用不到**。
+    失败也无所谓——下一轮还会再抽，记忆是"多次确认"而不是"一次必须成功"。
+    """
+    async def _run() -> None:
+        try:
+            facts = await _extract_facts(question, answer)
+            if not facts:
+                return
+            n = _mem.upsert_user_memories(user_id, facts, session_id)
+            # 立刻失效缓存，让下一轮就能看到新记忆（否则要等 60 秒）
+            _LONG_TERM_CACHE.pop(user_id, None)
+            logger.info(f"🧠 长期记忆 +{n} 条（user={user_id[:8]}）：{[f['key'] for f in facts]}")
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f"⚠️ 长期记忆抽取失败（忽略）: {type(e).__name__}: {e}")
+
+    try:
+        task = asyncio.create_task(_run())
+    except RuntimeError:      # 没有事件循环（同步脚本路径）→ 直接放弃，不影响主流程
+        return
+    _EXTRACT_TASKS.add(task)
+    task.add_done_callback(_EXTRACT_TASKS.discard)
+
+
+async def _extract_facts(question: str, answer: str) -> List[Dict]:
+    """调一次模型，从本轮问答里抽"关于用户本人"的稳定事实。
+
+    注意 `evidence=question`：**只认用户自己说过的话**。
+    实测过不传的效果——用户问"它的主人是谁"，助手答"代码的主人是小李"，
+    抽取器就把"称呼=小李"写进了用户画像，把用户自己说的"我叫张三"覆盖掉。
+    提示词里写"别抽第三方"它不听，落库前用用户原话卡一道才靠得住。
+    """
+    prompt = build_extract_prompt(question, answer)
+    llm = local_llm if _LTM_EXTRACT_PROVIDER == "local" else cloud_llm
+    resp = await llm.ainvoke([HumanMessage(content=prompt)])
+    raw = resp.content if isinstance(resp.content, str) else str(resp.content)
+    facts = parse_facts(raw, evidence=question)
+    if not facts and raw.strip():
+        # 只记一行，别把模型原文打出来（可能含用户隐私）
+        logger.info(f"🧠 长期记忆抽取：无可写入事实（原文 {len(raw)} 字）")
+    return facts
+
+
+async def finalize_turn(thread_id: str, question: str, user_id: str = "",
+                        meta: Dict | None = None) -> None:
+    """一轮问答结束后调用：落库 + 触发长期记忆抽取。
+
+    调用方必须保证它在**客户端拿到 [DONE] 之前**执行（见 main1 的注释）：
+    生成器在 yield 之后被取消时，后面的代码根本不会跑。
+
+    meta 可以由调用方传入（它刚读过一次 state），避免重复 aget_session_meta。
+    任何异常都不许往上抛——记忆坏了不该让这一轮变失败。
+    """
+    if not _mem.enabled_for(thread_id):
+        return
+    if meta is None:
+        try:
+            meta = await aget_session_meta(thread_id)
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f"⚠️ 收尾读取会话状态失败，本轮不落记忆: {e}")
+            return
+
+    answer = (meta.get("answer") or "").strip()
+    if not answer:
+        return
+
+    try:
+        _mem.ensure_session(thread_id, user_id)
+        turn_no = _mem.save_turn(
+            thread_id,
+            question,
+            answer,
+            sources=meta.get("sources") or [],
+            status=meta.get("status") or "",
+            confidence=meta.get("confidence"),
+        )
+        ents = _ENTITY_MEMORY.get(thread_id) or []
+        if ents:
+            _mem.save_entities(thread_id, ents)
+        if turn_no:
+            logger.info(f"💾 会话[{thread_id[:8]}] 第 {turn_no} 轮已持久化（{len(answer)} 字）")
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"⚠️ 会话记忆落库失败（忽略）: {e}")
+
+    if user_id and _LTM_ENABLED:
+        _schedule_extraction(user_id, thread_id, question, answer)
+
+
 # ========== 12. 真流式 ==========
-async def stream_conversation(user_input: str, thread_id: str = "test_user") -> AsyncGenerator[str, None]:
+async def stream_conversation(user_input: str, thread_id: str = "test_user",
+                              user_id: str = "") -> AsyncGenerator[str, None]:
     """
     端到端真流式（不经事件总线，彻底绕开 Ollama + bind_tools 吞事件的问题）。
 
@@ -1468,8 +1711,10 @@ async def stream_conversation(user_input: str, thread_id: str = "test_user") -> 
     这样 token 从模型到 SSE 只有"队列"一跳，不依赖 astream_events 的 metadata，
     也就不存在"事件被吞 → 静默零 token → 最后整段兜底 → 前端一次性出现"。
     """
-    config = {"configurable": {"thread_id": thread_id}}
-    inputs = {"messages": [HumanMessage(content=user_input)]}
+    config = {"configurable": {"thread_id": thread_id, "user_id": user_id}}
+    # 进程内状态为空（刚重启 / 换了个 worker）→ 先从 MySQL 把最近几轮接回来
+    seed = await _seed_messages(thread_id)
+    inputs = {"messages": seed + [HumanMessage(content=user_input)]}
 
     q: "asyncio.Queue" = asyncio.Queue()
     previous = _TOKEN_BUS.get(thread_id)

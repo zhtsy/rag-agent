@@ -142,6 +142,8 @@ data: [DONE]
 | `bm25_retriever.py` | BM25 检索器 |
 | `embeddings_shared.py` | **统一嵌入模型单例**（全项目只加载一次 bge） |
 | `qa_logger.py` | 问答日志落 MySQL（参数化 SQL） |
+| `memory_store.py` | **记忆持久化层**：会话轮次 / 会话实体 / 用户长期事实（MySQL；连不上自动降级） |
+| `memory_context.py` | 记忆的纯函数：按句截断、长期记忆渲染、抽取提示词、抽取结果解析（零依赖，可单测） |
 | `admin_app.py` | 后台：查看/删除/导出问答记录 |
 
 **数据构建**
@@ -229,7 +231,7 @@ curl -s http://127.0.0.1:8000/health
 |---|---|---|
 | GET | `/` | 服务信息 |
 | GET | `/health` | 健康检查，返回 `{"status","inflight","limit"}`（并发水位） |
-| POST | `/chat/stream` | **主接口**，SSE 流式。请求体 `{"message": "...", "session_id": "..."}`。**需鉴权**；过载时 **429** |
+| POST | `/chat/stream` | **主接口**，SSE 流式。请求体 `{"message": "...", "session_id": "...", "user_id": "可选"}`。**需鉴权**；过载时 **429** |
 | POST | `/feedback` | 提交 👍/👎，含 `contexts` 证据字段。**需鉴权**（匿名可达等于谁都能往数据飞轮里灌垃圾，归因直接失真） |
 | GET | `/feedback/stats` | 反馈分布统计。**需鉴权** |
 
@@ -325,6 +327,74 @@ data: [DONE]
 直接返回"未在知识库中找到相关信息。"，**不下发任何来源**。没有这道门槛时，RRF 会把
 无关块硬召回出来（问"马斯克是谁"实测 5 块最高分仅 `0.0026`），前端来源栏却挂着
 `test2.txt / test3.txt`，看起来像那些文件里写了答案。
+
+---
+
+## 4.9 记忆（短期 + 长期）
+
+### 短期：会话级
+
+| 层 | 存在哪 | 生命周期 | 作用 |
+|---|---|---|---|
+| 图状态 `messages` | 进程内存（`MemorySaver`） | 进程活多久 | 多轮对话、工具调用配对 |
+| 会话实体 `_ENTITY_MEMORY` | 进程内存 + `chat_sessions.entities` | 跨重启 | 代词消解（"它今年几岁" → 代码） |
+| 轮次原文 `chat_turns` | MySQL | 长期（默认保留，可 purge） | 重启 / 换 worker 后回填最近 3 轮 |
+
+**进程重启后是怎么接上的**：`stream_conversation` 先看进程里有没有该 thread 的状态；
+没有就按 `session_id` 从 `chat_turns` 取最近 3 轮，**拼在本轮输入前面**一起送进图。
+不用 `aupdate_state` —— 那个 API 会顺带决定"下一个跑哪个节点"，空状态之外用它容易把新输入吞掉。
+
+**历史压缩**：只留最近 3 轮（6 条）；历史 ToolMessage 与带 tool_calls 的 AIMessage 整对丢弃；
+历史答案按**句末标点**截断到 160 字（不是 `[:50]` 硬切——硬切会把"搬到深圳"这类限定切掉，
+下一轮追问就答不上来）。
+
+### 长期：用户级
+
+需要请求体带 `user_id`（没有身份维度就没有跨会话记忆，这点没法绕过）。
+
+```
+一轮结束（[DONE] 之前）
+      ├─ save_turn          → chat_turns（完整问答，不截断）
+      └─ 后台抽事实          → user_memories（最多 3 条，key 去重，hit_count 累加）
+下一轮 / 新会话
+      └─ agent_node 生成阶段拼一段【已知用户信息】进 system prompt（≤320 字）
+```
+
+三个刻意的约束，都是从实际踩坑来的：
+
+1. **事实必须出自用户原话**。抽取后做一次字符 bigram 依据检查
+   （`evidence_support < 0.5` 直接丢）。不加这道检查时，用户问"它的主人是谁"、
+   助手答"代码的主人是小李"，抽取器就把 `称呼=小李` 写进画像，覆盖掉用户自己说的"我叫张三"。
+2. **只在生成阶段注入，不进检索决策**。长期记忆一旦参与 query 构造，
+   模型会把"用户上次问过川菜"当成"这次也要查川菜"，检索直接跑偏。
+3. **软遗忘**：`updated_at` 超过 180 天未再被确认的事实不再注入（不删）。
+   永远不忘的记忆会变成负担——三个月前的一句话被当成本轮事实。
+
+**开关**（`.env`）：
+
+| 变量 | 默认 | 说明 |
+|---|---|---|
+| `RAG_MEMORY_STORE` | `1` | 关掉则完全不用持久化记忆（退化成纯进程内） |
+| `RAG_MEMORY_EVAL_SESSIONS` | `0` | 评测会话（`eval-` 前缀）是否也落库。**默认关**，否则第二次跑分会带着第一次的历史，分数虚高 |
+| `RAG_LTM_ENABLED` | `1` | 长期记忆总开关（关掉可省一次 LLM 抽取调用） |
+| `RAG_LTM_EXTRACT_PROVIDER` | `cloud` | 抽取用 `cloud`(DeepSeek) 还是 `local`(Qwen) |
+
+**会话隔离**：请求不带 `session_id` 时不再回落到全局 `default_session`
+（那会让所有用户共用一个上下文），改为 `anon-` + 客户端指纹；同一台设备复用同一会话。
+
+**运维命令**（不暴露成 HTTP 接口，避免记忆被未授权读取）：
+
+```bash
+python memory_store.py stats                 # 会话数 / 轮次数 / 记忆条数
+python memory_store.py show <user_id>        # 看某个用户的长期事实
+python memory_store.py forget <user_id> [key]# 删一条或全部（用户要求"忘掉"时用）
+python memory_store.py turns <session_id> 5  # 看某会话最近 5 轮
+python memory_store.py purge 30 --run        # 清理 30 天前的轮次
+```
+
+**已知边界**：`MemorySaver` 仍是单进程的，多 worker 下每个 worker 首次访问同一会话都会
+各自回填一次（内容相同，不会错乱，但会多读一次库）；长期记忆的抽取质量取决于问题里
+是否明确说了用户信息，隐晦表达抽不到是正常的——宁可少记，也不要记错。
 
 ---
 
