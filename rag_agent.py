@@ -14,7 +14,14 @@ D. 记忆：会话轮次与实体记忆落 MySQL（重启/换 worker 后回填�
 
 import asyncio
 import os
-import local_env  # noqa: F401  # 本地运行环境预设；必须在 torch/FlagEmbedding 之前，云端不生效
+# 本地运行环境预设：必须在 torch/FlagEmbedding 之前导入。
+# 它是**可选**的——云端容器不需要（线程数/联网策略由镜像和 compose 决定），
+# 而一旦硬导入，缺文件就会让整个服务起不来（实测：容器 Restarting，健康检查全红）。
+# 所以这里吞掉 ImportError，只降级“没做本地预设”，不降级“服务能否启动”。
+try:
+    import local_env  # noqa: F401
+except ImportError:  # pragma: no cover - 仅云端/精简部署会走到
+    local_env = None  # type: ignore[assignment]
 import datetime  # noqa: F401  # 保留（部分环境初始化会用到）
 import json
 import re
