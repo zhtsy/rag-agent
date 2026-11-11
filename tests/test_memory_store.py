@@ -104,56 +104,45 @@ def test_entities_unknown_session_returns_empty(store):
 
 
 # =====================================================================
-# 4. 长期记忆
+# 4. 滚动摘要
 # =====================================================================
-def test_upsert_dedupes_and_updates_value(store):
-    uid = f"{_PREFIX}-u1"
-    n = store.upsert_user_memories(
-        uid, [{"key": "称呼", "value": "小王", "category": "profile", "confidence": 0.9}], "s1"
-    )
-    assert n == 1
-    store.upsert_user_memories(
-        uid, [{"key": "称呼", "value": "王工", "category": "profile", "confidence": 0.8}], "s2"
-    )
-    mems = store.load_user_memories(uid)
-    assert len(mems) == 1
-    assert mems[0]["value"] == "王工"        # 新值覆盖旧值
-    assert mems[0]["hit_count"] == 2         # 被确认两次
+def test_summary_roundtrip_and_monotonic_progress(store):
+    sid = f"{_PREFIX}-sum1"
+    assert store.load_summary(sid)["upto_turn"] == 0        # 还没有摘要
+
+    store.save_summary(sid, "第一版摘要", 3)
+    data = store.load_summary(sid)
+    assert data["summary"] == "第一版摘要" and data["upto_turn"] == 3
+
+    store.save_summary(sid, "第二版摘要", 6)
+    data = store.load_summary(sid)
+    assert data["summary"] == "第二版摘要" and data["upto_turn"] == 6
+
+    # upto_turn 只能前进：并发下旧值不能把进度倒退，
+    # 否则同一批轮次会被重复摘要，摘要越压越糊。
+    store.save_summary(sid, "旧值", 2)
+    assert store.load_summary(sid)["upto_turn"] == 6
 
 
-def test_load_user_memories_isolated_per_user(store):
-    u1, u2 = f"{_PREFIX}-a", f"{_PREFIX}-b"
-    store.upsert_user_memories(u1, [{"key": "城市", "value": "深圳"}])
-    store.upsert_user_memories(u2, [{"key": "城市", "value": "北京"}])
-    assert store.load_user_memories(u1)[0]["value"] == "深圳"
-    assert store.load_user_memories(u2)[0]["value"] == "北京"
+def test_load_turns_range_boundaries_and_order(store):
+    sid = f"{_PREFIX}-sum2"
+    for i in range(1, 6):
+        store.save_turn(sid, f"问题{i}", f"回答{i}")
+
+    rows = store.load_turns_range(sid, 2, 4)
+    assert [r["turn_no"] for r in rows] == [2, 3, 4]        # 闭区间 + 正序
+    assert rows[0]["question"] == "问题2"
+
+    assert store.load_turns_range(sid, 4, 2) == []          # 反向区间直接空
+    assert store.load_turns_range(sid, 1, 99)[-1]["turn_no"] == 5   # 上界超出不报错
 
 
-def test_load_user_memories_orders_by_hit_count(store):
-    uid = f"{_PREFIX}-order"
-    store.upsert_user_memories(uid, [{"key": "常问", "value": "川菜"}])
-    for _ in range(3):
-        store.upsert_user_memories(uid, [{"key": "常问", "value": "川菜"}])
-    store.upsert_user_memories(uid, [{"key": "偶问", "value": "粤菜"}])
-    mems = store.load_user_memories(uid, limit=5)
-    assert mems[0]["key"] == "常问"
-
-
-def test_forget_one_and_all(store):
-    uid = f"{_PREFIX}-forget"
-    store.upsert_user_memories(uid, [{"key": "k1", "value": "v1"}, {"key": "k2", "value": "v2"}])
-    assert len(store.load_user_memories(uid)) == 2
-    assert store.forget_user_memory(uid, "k1") == 1
-    assert [m["key"] for m in store.load_user_memories(uid)] == ["k2"]
-    assert store.forget_user_memory(uid) == 1
-    assert store.load_user_memories(uid) == []
-
-
-def test_empty_inputs_are_safe(store):
-    assert store.upsert_user_memories("", [{"key": "a", "value": "b"}]) == 0
-    assert store.upsert_user_memories(f"{_PREFIX}-x", []) == 0
-    assert store.load_user_memories("") == []
-    assert store.forget_user_memory("") == 0
+def test_summary_empty_inputs_are_safe(store):
+    assert store.load_summary("")["upto_turn"] == 0
+    store.save_summary("", "x", 1)                          # 空 session 不炸
+    store.save_summary(f"{_PREFIX}-s", "", 1)               # 空摘要不写
+    assert store.load_summary(f"{_PREFIX}-s")["summary"] == ""
+    assert store.load_turns_range("", 1, 2) == []
 
 
 # =====================================================================
@@ -164,6 +153,7 @@ def test_degrades_gracefully_without_db(monkeypatch):
     assert memory_store.save_turn("s-degrade", "q", "a") == 0
     assert memory_store.load_recent_turns("s-degrade") == []
     assert memory_store.load_entities("s-degrade") == []
-    assert memory_store.load_user_memories("u-degrade") == []
-    assert memory_store.upsert_user_memories("u-degrade", [{"key": "a", "value": "b"}]) == 0
+    assert memory_store.load_summary("s-degrade") == {"summary": "", "upto_turn": 0}
+    assert memory_store.load_turns_range("s-degrade", 1, 3) == []
+    memory_store.save_summary("s-degrade", "x", 1)           # 降级路径下不抛异常
     assert memory_store.stats()["turns"] == 0

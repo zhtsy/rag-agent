@@ -142,10 +142,11 @@ app.add_middleware(
 class ChatRequest(BaseModel):
     message: str
     session_id: Optional[str] = "default_session"
-    # 长期记忆的身份维度。不传 = 只用会话短期记忆（老客户端/评测脚本行为不变）。
+    # 保留字段用于 chat_sessions 的归属记录（谁用过这个会话）。
+    # 跨会话长期记忆已撤掉，传了也不会注入任何画像——理由见 memory_store 文件头。
     user_id: Optional[str] = Field(
         default=None,
-        description="用户唯一标识。传了才有跨会话长期记忆；不传则只做会话内短期记忆。",
+        description="可选的用户标识，仅用于会话归属记录；不影响回答。",
     )
 
 

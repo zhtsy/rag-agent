@@ -12,7 +12,15 @@ sqlite 文件是容器内单点的，第二个 worker 读不到；而 PostgresSa
 
     chat_sessions   会话元数据 + 会话级实体（代词消解用），重启后能恢复
     chat_turns      每一轮的完整问答（不截断），重启/换 worker 时回填最近 N 轮
-    user_memories   用户级长期事实，跨会话、跨设备可用
+    chat_summaries  滑出窗口的旧轮次压成的摘要，让几十轮前的要求不丢
+
+为什么不做"用户级长期记忆"（画像表）：
+    做过一版，用 user_id 抽"称呼/城市/偏好"存起来、新会话注入。后来整块撤掉了，理由是
+    ① 本项目是知识问答为主，用户很少需要"被记住是谁"，收益远不如把同会话做深；
+    ② 跨会话记忆的失败模式是**记错**而不是记不住（实测把助手答案里的"小李"抽成了
+       用户称呼，覆盖掉用户自己说的名字），而纠错成本极高、用户还看不见；
+    ③ 它和检索会抢位置：画像一旦和知识库冲突，模型更愿意相信自己"记得"的事。
+    结论：会话内做深 + 滚动摘要，比"跨会话认人"更适合这个场景。
 
 三条纪律（比功能本身重要）
 ──────────────────────────
@@ -32,7 +40,7 @@ from contextlib import contextmanager
 from datetime import datetime, timedelta
 from typing import Any, Dict, Iterable, List, Optional, Sequence
 
-from sqlalchemy import bindparam, create_engine, text
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
 try:  # 统一走项目日志；测试环境没有 logs/ 目录时退回标准库
@@ -172,20 +180,11 @@ _TABLE_DDL = (
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     """,
     """
-    CREATE TABLE IF NOT EXISTS user_memories (
-        id BIGINT AUTO_INCREMENT PRIMARY KEY,
-        user_id VARCHAR(128) NOT NULL,
-        mem_key VARCHAR(64) NOT NULL,
-        mem_value VARCHAR(255) NOT NULL,
-        category VARCHAR(32) NOT NULL DEFAULT 'profile',
-        confidence DOUBLE NOT NULL DEFAULT 0.6,
-        hit_count INT NOT NULL DEFAULT 1,
-        source_session VARCHAR(128) NULL,
-        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        last_hit_at DATETIME NULL,
-        UNIQUE KEY uk_user_key (user_id, mem_key),
-        INDEX idx_user_updated (user_id, updated_at)
+    CREATE TABLE IF NOT EXISTS chat_summaries (
+        session_id VARCHAR(128) NOT NULL PRIMARY KEY,
+        summary LONGTEXT NOT NULL,
+        upto_turn INT NOT NULL DEFAULT 0,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     """,
 )
@@ -357,135 +356,79 @@ def count_turns(session_id: str) -> int:
 
 
 # =====================================================================
-# 3. 用户级长期记忆
+# 3. 滚动摘要（把滑出窗口的旧轮次压成一段）
 # =====================================================================
-def upsert_user_memories(
-    user_id: str,
-    facts: Sequence[Dict[str, Any]],
-    source_session: str = "",
-) -> int:
-    """写入/更新用户事实，返回实际写入条数。
+def load_summary(session_id: str) -> Dict[str, Any]:
+    """取该会话的摘要与"已摘要到第几轮"。
 
-    去重键是 (user_id, mem_key)：同一件事第二次被抽到，
-    不新增一行，而是**覆盖 value 并把 hit_count +1**。
-    这样"去过上海"改成"搬到深圳"能自动更新，
-    而反复出现的事实会自然排到前面（读取时按 hit_count 排序）。
+    upto_turn 是这个功能的核心：它把"哪些轮次已经被压过"变成可判断的，
+    否则每轮都会把同样的旧对话重复压一遍——既费 token，摘要还会越滚越长，
+    最后变成"摘要比原文还长"，压缩就失去意义了。
     """
-    if not user_id or not facts:
-        return 0
-    written = 0
+    empty = {"summary": "", "upto_turn": 0}
+    if not session_id:
+        return empty
     with _conn() as s:
         if s is None:
-            return 0
-        now = datetime.now()
-        for f in facts:
-            key = str(f.get("key") or "").strip()[:64]
-            value = str(f.get("value") or "").strip()[:255]
-            if not key or not value:
-                continue
-            s.execute(
-                text(
-                    """INSERT INTO user_memories
-                       (user_id, mem_key, mem_value, category, confidence, source_session, updated_at)
-                       VALUES (:uid, :k, :v, :cat, :cf, :src, :now)
-                       ON DUPLICATE KEY UPDATE
-                         mem_value = VALUES(mem_value),
-                         category = VALUES(category),
-                         confidence = GREATEST(confidence, VALUES(confidence)),
-                         hit_count = hit_count + 1,
-                         source_session = VALUES(source_session),
-                         updated_at = VALUES(updated_at)"""
-                ),
-                {
-                    "uid": user_id,
-                    "k": key,
-                    "v": value,
-                    "cat": str(f.get("category") or "profile")[:32],
-                    "cf": float(f.get("confidence") or 0.6),
-                    "src": (source_session or "")[:128] or None,
-                    "now": now,
-                },
-            )
-            written += 1
-    return written
+            return empty
+        row = s.execute(
+            text("SELECT summary, upto_turn FROM chat_summaries WHERE session_id = :sid"),
+            {"sid": session_id},
+        ).fetchone()
+    if not row:
+        return empty
+    return {"summary": row[0] or "", "upto_turn": int(row[1] or 0)}
 
 
-def load_user_memories(
-    user_id: str,
-    limit: int = 8,
-    days: int = 180,
-) -> List[Dict[str, Any]]:
-    """按"被确认次数 + 新鲜度"取用户事实。
+def save_summary(session_id: str, summary: str, upto_turn: int) -> None:
+    """写入摘要。upto_turn 只增不减（GREATEST），防止并发的旧值把进度倒退。"""
+    if not session_id or not summary or not enabled_for(session_id):
+        return
+    with _conn() as s:
+        if s is None:
+            return
+        s.execute(
+            text(
+                """INSERT INTO chat_summaries (session_id, summary, upto_turn)
+                   VALUES (:sid, :sm, :up)
+                   ON DUPLICATE KEY UPDATE
+                     summary = VALUES(summary),
+                     upto_turn = GREATEST(upto_turn, VALUES(upto_turn))"""
+            ),
+            {"sid": session_id, "sm": summary, "up": int(upto_turn)},
+        )
 
-    days 是**软遗忘**：太久没被再次确认的事实不再注入，但也不删。
-    "永远不会忘"听起来是优点，实际是灾难——用户三个月前说过的话还挂在 prompt 里，
-    模型会把它当成当前状态（"你上次说在准备考研"）。
+
+def load_turns_range(session_id: str, start_no: int, end_no: int) -> List[Dict[str, Any]]:
+    """取 [start_no, end_no] 闭区间的轮次，正序返回。
+
+    必须正序：摘要是**按时间顺序**合并的，"先问了什么"决定了后一句里的"它"指谁。
     """
-    if not user_id or limit <= 0:
+    if not session_id or end_no < start_no:
         return []
-    cutoff = datetime.now() - timedelta(days=max(1, days))
     with _conn() as s:
         if s is None:
             return []
         rows = s.execute(
             text(
-                """SELECT mem_key, mem_value, category, confidence, hit_count, updated_at
-                   FROM user_memories
-                   WHERE user_id = :uid AND updated_at >= :cutoff
-                   ORDER BY hit_count DESC, updated_at DESC
-                   LIMIT :lim"""
+                """SELECT turn_no, question, answer FROM chat_turns
+                   WHERE session_id = :sid AND turn_no BETWEEN :a AND :b
+                   ORDER BY turn_no ASC"""
             ),
-            {"uid": user_id, "cutoff": cutoff, "lim": int(limit)},
+            {"sid": session_id, "a": int(start_no), "b": int(end_no)},
         ).fetchall()
-        if not rows:
-            return []
-        # 顺手记一次"被用到"，用于以后做衰减/清理
-        keys = [r[0] for r in rows]
-        s.execute(
-            text(
-                "UPDATE user_memories SET last_hit_at = :now "
-                "WHERE user_id = :uid AND mem_key IN :keys"
-            ).bindparams(bindparam("keys", expanding=True)),
-            {"now": datetime.now(), "uid": user_id, "keys": keys},
-        )
-    return [
-        {
-            "key": r[0],
-            "value": r[1],
-            "category": r[2],
-            "confidence": r[3],
-            "hit_count": r[4],
-            "updated_at": r[5],
-        }
-        for r in rows
-    ]
-
-
-def forget_user_memory(user_id: str, key: Optional[str] = None) -> int:
-    """删掉某个用户的一条或全部记忆，返回删除条数。"""
-    if not user_id:
-        return 0
-    with _conn() as s:
-        if s is None:
-            return 0
-        if key:
-            res = s.execute(
-                text("DELETE FROM user_memories WHERE user_id = :uid AND mem_key = :k"),
-                {"uid": user_id, "k": key},
-            )
-        else:
-            res = s.execute(
-                text("DELETE FROM user_memories WHERE user_id = :uid"),
-                {"uid": user_id},
-            )
-        return int(res.rowcount or 0)
+    return [{"turn_no": r[0], "question": r[1] or "", "answer": r[2] or ""} for r in rows]
 
 
 # =====================================================================
 # 4. 清理与统计
 # =====================================================================
 def purge_old_turns(days: int = 30, dry_run: bool = True) -> Dict[str, int]:
-    """清理过老的会话轮次。长期事实不跟着删——它们本来就该比会话活得久。"""
+    """清理过老的会话轮次。
+
+    注意摘要**不跟着删**：chat_turns 删掉后，摘要就是这段会话唯一的痕迹。
+    如果摘要也没了，重启会话时模型会以为这是一段全新的对话。
+    """
     cutoff = datetime.now() - timedelta(days=max(1, days))
     with _conn() as s:
         if s is None:
@@ -502,12 +445,11 @@ def purge_old_turns(days: int = 30, dry_run: bool = True) -> Dict[str, int]:
 def stats() -> Dict[str, int]:
     with _conn() as s:
         if s is None:
-            return {"sessions": 0, "turns": 0, "memories": 0, "users": 0}
+            return {"sessions": 0, "turns": 0, "summaries": 0}
         return {
             "sessions": int(s.execute(text("SELECT COUNT(*) FROM chat_sessions")).scalar() or 0),
             "turns": int(s.execute(text("SELECT COUNT(*) FROM chat_turns")).scalar() or 0),
-            "memories": int(s.execute(text("SELECT COUNT(*) FROM user_memories")).scalar() or 0),
-            "users": int(s.execute(text("SELECT COUNT(DISTINCT user_id) FROM user_memories")).scalar() or 0),
+            "summaries": int(s.execute(text("SELECT COUNT(*) FROM chat_summaries")).scalar() or 0),
         }
 
 
@@ -521,8 +463,7 @@ if __name__ == "__main__":
     if not argv:
         print("用法:")
         print("  python memory_store.py stats")
-        print("  python memory_store.py show <user_id>")
-        print("  python memory_store.py forget <user_id> [key]")
+        print("  python memory_store.py summary <session_id>")
         print("  python memory_store.py turns <session_id> [limit]")
         print("  python memory_store.py purge [days] --run")
         sys.exit(0)
@@ -530,12 +471,10 @@ if __name__ == "__main__":
     cmd = argv[0]
     if cmd == "stats":
         print(stats())
-    elif cmd == "show" and len(argv) > 1:
-        for m in load_user_memories(argv[1], limit=50, days=3650):
-            print(f"[{m['category']}] {m['key']}: {m['value']}  (hit={m['hit_count']}, conf={m['confidence']})")
-    elif cmd == "forget" and len(argv) > 1:
-        key = argv[2] if len(argv) > 2 else None
-        print(f"已删除 {forget_user_memory(argv[1], key)} 条")
+    elif cmd == "summary" and len(argv) > 1:
+        data = load_summary(argv[1])
+        print(f"已摘要到第 {data['upto_turn']} 轮")
+        print(data["summary"] or "（还没有摘要）")
     elif cmd == "turns" and len(argv) > 1:
         lim = int(argv[2]) if len(argv) > 2 else 5
         for t in load_recent_turns(argv[1], limit=lim):

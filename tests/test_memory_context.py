@@ -3,20 +3,46 @@
 
 这些函数是记忆链路里最容易出错的部分：
   · 截断切在半个句子里，下一轮模型就"忘了"关键限定
-  · 长期记忆渲染漏了"只作背景"的护栏，模型会拿用户画像当证据
-  · 模型吐 Markdown 围栏 / 单对象 / 英文字段，解析直接崩
+  · 摘要把实体名吃掉，下一轮"它几岁"就再也指代不了
+  · 摘要渲染漏了"只作背景"的护栏，模型会拿旧结论当本轮证据
 """
 
 import pytest
 
 from memory_context import (
-    build_extract_prompt,
-    evidence_support,
-    parse_facts,
-    render_long_term_block,
+    DEFAULT_HISTORY_TURNS,
+    build_summary_prompt,
+    ensure_summary_entities,
+    history_turns_for,
+    render_summary_block,
     resolve_session_id,
     smart_truncate,
 )
+
+
+# =====================================================================
+# 0. 历史窗口按 provider 收回
+# =====================================================================
+def test_window_is_wide_on_cloud_providers():
+    """云端 128K 上下文，不该还按本地 7B 的 3 轮跑。"""
+    assert history_turns_for("deepseek") == 16
+
+
+def test_hybrid_window_is_moderate():
+    """hybrid 的生成走本地 7B（num_ctx=4096），不能按云端 128K 给 16 轮。"""
+    assert history_turns_for("hybrid") == 8
+    assert history_turns_for("hybrid") < history_turns_for("deepseek")
+
+
+def test_window_shrinks_when_falling_back_to_local():
+    """降级到纯本地必须自动收回，否则检索证据被历史挤掉。"""
+    assert history_turns_for("local") == 3
+    assert history_turns_for("  LOCAL  ") == 3        # 大小写/空格都要能识别
+
+
+def test_window_default_for_unknown_provider():
+    assert history_turns_for("") == DEFAULT_HISTORY_TURNS
+    assert history_turns_for("some-new-api") == DEFAULT_HISTORY_TURNS
 
 
 # =====================================================================
@@ -86,112 +112,82 @@ def test_no_fingerprint_gives_unique_session():
 
 
 # =====================================================================
-# 3. 长期记忆渲染
+# 3. 摘要提示词
 # =====================================================================
-def test_render_empty():
-    assert render_long_term_block([]) == ""
-    assert render_long_term_block([{"key": "", "value": "x"}]) == ""
+_TURNS = [
+    {"turn_no": 1, "question": "代码是什么品种？", "answer": "代码是一只橘猫，主人是小李。"},
+    {"turn_no": 2, "question": "它几岁？", "answer": "代码今年 3 岁。"},
+]
 
 
-def test_render_contains_guard_sentence():
-    block = render_long_term_block([{"key": "称呼", "value": "小王"}])
-    assert "称呼：小王" in block
-    # 护栏必须存在：不知情的话模型会拿"用户画像"当证据答题
-    assert "以资料为准" in block
+def test_summary_prompt_carries_prev_and_turns():
+    p = build_summary_prompt("上一版摘要：聊过拿铁", _TURNS)
+    assert "上一版摘要：聊过拿铁" in p
+    assert "代码是一只橘猫" in p
+    assert "[第 1 轮]" in p and "[第 2 轮]" in p
 
 
-def test_render_respects_char_budget():
-    memories = [{"key": f"k{i}", "value": "x" * 40} for i in range(20)]
-    block = render_long_term_block(memories, max_chars=100)
-    body = block.split("\n", 1)[1]
-    assert len(body) <= 120        # 只保留能把预算装下的那几条
-    assert block.count("- ") < 20
+def test_summary_prompt_has_no_format_placeholders_left():
+    """提示词里有大括号风险，必须是 replace 而不是 format。"""
+    p = build_summary_prompt("", _TURNS)
+    assert "__PREV__" not in p and "__TURNS__" not in p and "__LIMIT__" not in p
 
 
-# =====================================================================
-# 4. 抽取提示词与解析
-# =====================================================================
-def test_extract_prompt_replaces_placeholders_without_format_error():
-    # 提示词里带 JSON 示例的 {}，若用 str.format 会 KeyError——这条是回归测试
-    p = build_extract_prompt("我叫小王，喜欢川菜", "好的，记住了" * 100)
-    assert "__Q__" not in p and "__A__" not in p
-    assert "我叫小王" in p
-    assert len(p) < 4000
+def test_summary_prompt_with_empty_inputs_is_safe():
+    p = build_summary_prompt("", [])
+    assert "（无）" in p
 
 
-def test_parse_facts_normal_array():
-    raw = '[{"key": "称呼", "value": "小王", "category": "profile", "confidence": 0.9}]'
-    facts = parse_facts(raw)
-    assert len(facts) == 1
-    assert facts[0]["key"] == "称呼"
-    assert facts[0]["confidence"] == 0.9
-
-
-def test_parse_facts_with_fence_and_chatter():
-    raw = '好的，我抽取到：\n```json\n[{"key":"口味","value":"喜欢川菜"}]\n```\n希望有帮助'
-    facts = parse_facts(raw)
-    assert facts and facts[0]["value"] == "喜欢川菜"
-    assert facts[0]["category"] == "profile"     # 缺省分类
-
-
-def test_parse_facts_single_object_and_wrapper():
-    assert parse_facts('{"key":"城市","value":"深圳"}')[0]["value"] == "深圳"
-    wrapped = '{"facts": [{"key":"城市","value":"深圳"}]}'
-    assert parse_facts(wrapped)[0]["value"] == "深圳"
-
-
-def test_parse_facts_bad_input_returns_empty():
-    assert parse_facts("") == []
-    assert parse_facts("我不知道该抽什么") == []
-    assert parse_facts("[not json]") == []
-
-
-def test_parse_facts_drops_noise_and_caps_count():
-    raw = (
-        '[{"key":"称呼","value":"未知"},'
-        '{"key":"","value":"空键"},'
-        '{"key":"' + "k" * 30 + '","value":"键太长"},'
-        '{"key":"a","value":"1"},{"key":"b","value":"2"},{"key":"c","value":"3"},'
-        '{"key":"d","value":"4"}]'
-    )
-    facts = parse_facts(raw)
-    assert len(facts) == 3          # 最多 3 条
-    assert all(f["value"] != "未知" for f in facts)
-
-
-def test_parse_facts_coerces_confidence_and_category():
-    facts = parse_facts('[{"key":"目标","value":"准备秋招","category":"GOAL","confidence":"0.85"}]')
-    assert facts[0]["category"] == "goal"
-    assert facts[0]["confidence"] == 0.85
+def test_summary_prompt_truncates_long_answer():
+    long_turn = {"turn_no": 9, "question": "问" * 300, "answer": "答" * 2000}
+    p = build_summary_prompt("", [long_turn])
+    # 摘要是压缩，不是誊抄：超长回答必须被截断，否则摘要会比原文还长
+    assert len(p) < 1200
 
 
 # =====================================================================
-# 5. 依据检查：只认用户自己说过的话
+# 4. 实体名兜底（摘要最致命的信息损失）
 # =====================================================================
-def test_evidence_support_basic():
-    assert evidence_support("张三", "我叫张三，在上海做后端开发") > 0.9
-    assert evidence_support("小李", "它的主人是谁？") == 0.0
+def test_entities_are_appended_when_summary_dropped_them():
+    summary = "用户询问了一只宠物的品种和年龄。"
+    source = "问：代码是什么品种？答：代码是一只橘猫。"
+    out = ensure_summary_entities(summary, source, ["代码", "拿铁"])
+    assert "代码" in out
+    assert "【涉及实体】" in out
+    assert "拿铁" not in out          # 原文里没有的实体不能凭空补
 
 
-def test_parse_facts_drops_facts_never_said_by_user():
-    """实测 bug 的回归测试：
-    用户问"它的主人是谁"，助手答"代码的主人是小李"，
-    抽取器返回"称呼=小李"——这条必须被丢掉，否则会把用户自己说的名字覆盖掉。
-    """
-    raw = (
-        '[{"key":"称呼","value":"小李"},'
-        '{"key":"称呼","value":"张三"}]'
-    )
-    facts = parse_facts(raw, evidence="我叫张三，在上海做后端开发")
-    assert [f["value"] for f in facts] == ["张三"]
+def test_entities_not_duplicated_when_summary_kept_them():
+    summary = "代码是一只橘猫，今年 3 岁。"
+    source = "问：代码是什么品种？答：代码是一只橘猫。"
+    out = ensure_summary_entities(summary, source, ["代码"])
+    assert out == summary             # 已经有了就不该再追加一行
 
 
-def test_parse_facts_without_evidence_keeps_everything():
-    raw = '[{"key":"称呼","value":"小李"}]'
-    assert len(parse_facts(raw)) == 1          # 不传 evidence 时不拦，纯解析
+def test_entities_noop_when_source_empty():
+    assert ensure_summary_entities("摘要", "", ["代码"]) == "摘要"
 
 
-def test_parse_facts_keeps_lightly_rephrased_value():
-    # 轻微改写（"吃饭偏辣" vs "吃饭偏辣"）不该因为用词不完全一致就被丢掉
-    raw = '[{"key":"口味偏好","value":"吃饭偏辣"}]'
-    assert len(parse_facts(raw, evidence="我叫张三，吃饭偏辣")) == 1
+def test_entities_multiple_missing_joined():
+    out = ensure_summary_entities("聊了两只宠物。", "代码和拿铁都在客厅。", ["代码", "拿铁"])
+    assert "代码" in out and "拿铁" in out
+
+
+# =====================================================================
+# 5. 摘要渲染
+# =====================================================================
+def test_render_summary_empty():
+    assert render_summary_block("") == ""
+    assert render_summary_block("   ") == ""
+
+
+def test_render_summary_contains_guard_sentence():
+    block = render_summary_block("代码是一只橘猫。")
+    assert "更早的对话摘要" in block
+    assert "不是本轮问题的证据" in block     # 护栏句：防止模型拿旧结论当证据
+    assert "代码是一只橘猫。" in block
+
+
+def test_render_summary_respects_char_budget():
+    block = render_summary_block("橘猫" * 500, max_chars=100)
+    assert len(block) < 260

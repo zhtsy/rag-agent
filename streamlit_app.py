@@ -133,16 +133,6 @@ def _render_contexts(msg: dict) -> None:
 
 if "session_id" not in st.session_state:
     st.session_state.session_id = _get_or_create_session_id()
-if "user_id" not in st.session_state:
-    # 用户标识：有它才有跨会话的长期记忆；没有就只做会话内短期记忆。
-    # 从 URL 的 uid 参数恢复，刷新页面不用重新输。
-    try:
-        _uid = st.query_params.get("uid")
-        if isinstance(_uid, list):
-            _uid = _uid[0] if _uid else ""
-        st.session_state.user_id = (_uid or "").strip()
-    except Exception:  # noqa: BLE001
-        st.session_state.user_id = ""
 if "messages" not in st.session_state:
     st.session_state.messages = []
 if "fb_status" not in st.session_state:
@@ -167,19 +157,6 @@ with st.sidebar:
     feedback_url = st.text_input("反馈接口", _derive_feedback_url(api_url))    # 反馈接口也走同一把钥匙：存进 session_state，_auth_headers() 统一取，
     # 免得把 api_token 作为参数串进 4 层函数签名。
     st.session_state["api_token"] = api_token
-    # 用户标识：填了 → 后端按 user_id 抽取/注入长期记忆；留空 → 只有会话内记忆。
-    # 这里不做登录，只是个约定字段（"小王"/"zhang"），生产上应换成真实登录态。
-    _uid_input = st.text_input(
-        "用户标识（跨会话记忆）",
-        value=st.session_state.get("user_id", ""),
-        help="填了才会跨会话记住身份/偏好；留空只记本次会话的上下文。",
-    )
-    if _uid_input.strip() != st.session_state.get("user_id", ""):
-        st.session_state.user_id = _uid_input.strip()
-        try:
-            st.query_params["uid"] = st.session_state.user_id
-        except Exception:  # noqa: BLE001
-            pass
     show_sources = st.checkbox("显示引用来源", value=True)
     show_contexts = st.checkbox("显示检索上下文（调试用）", value=False)
 
@@ -432,8 +409,6 @@ if prompt := st.chat_input("请输入您的问题..."):
         payload = {
             "message": prompt,
             "session_id": st.session_state.session_id,   # 只发 ID，历史在后端
-            # 有用户标识时后端会做两件事：注入该用户的历史事实、在本轮结束后抽新事实
-            "user_id": (st.session_state.get("user_id") or "").strip() or None,
         }
 
         answer = st.write_stream(sse_stream(api_url, payload, meta, api_token)) or ""
