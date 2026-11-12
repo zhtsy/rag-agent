@@ -5,7 +5,13 @@
 「未知来源」，评测里"检索召回率"直接掉到 0.202。原因不是检索坏了，是
 读取端只认 metadata["source"]，而 ingest 写的是 source_file + source_path。
 """
-import rag_agent as R
+import pytest
+
+# CI 只装 pytest（不装 langchain/torch），rag_agent 在那种环境里 import 不了。
+# 与项目其它测试一致：缺依赖就跳过，不要让整条 CI 变红。
+pytest.importorskip("langchain")
+
+import rag_agent as R  # noqa: E402
 
 
 def test_prefers_source_file():

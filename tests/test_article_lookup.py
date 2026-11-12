@@ -8,7 +8,10 @@
 """
 import pytest
 
-import rag_agent as R
+# CI 只装 pytest，rag_agent 依赖 langchain，缺依赖时按项目惯例跳过。
+pytest.importorskip("langchain")
+
+import rag_agent as R  # noqa: E402
 
 
 @pytest.mark.parametrize("q,law,num", [
