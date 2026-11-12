@@ -14,7 +14,12 @@ import uuid
 
 import pytest
 
-import memory_store
+# CI 只装 pytest（见 .github/workflows/ci.yml），不装 sqlalchemy。
+# 模块级跳过而不是让整个 collection 报错：这个文件本来就是"连不上库就 skip"的语义，
+# 依赖缺失等价于"环境不具备"，不该把整条 CI 拖红（一红之后就没人看了）。
+pytest.importorskip("sqlalchemy", reason="memory_store 依赖 sqlalchemy，CI 不装")
+
+import memory_store  # noqa: E402
 
 # 每个测试用独立前缀，互不干扰，也方便清理
 _PREFIX = f"pytest-{uuid.uuid4().hex[:8]}"
