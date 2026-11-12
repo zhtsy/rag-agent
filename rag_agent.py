@@ -31,7 +31,7 @@ import time
 import uuid
 import jieba
 import torch
-from typing import TypedDict, Annotated, Sequence, AsyncGenerator, Dict, List
+from typing import TypedDict, Annotated, Sequence, AsyncGenerator, Dict, List, Optional
 
 from dotenv import load_dotenv
 from langchain_deepseek import ChatDeepSeek
@@ -347,6 +347,96 @@ def _should_route_graph(query: str, entities: List[str]) -> bool:
     return hit
 
 
+# 「《专利法》第三十六条」「劳动合同法第23条」这类引用型问句。
+# 后缀里必须带「典」：民法典不以「法」结尾，只写 (法|条例|…) 时
+# 「民法典第577条」整句匹配不上（实测踩过）。
+_ARTICLE_REF_RE = re.compile(
+    r"[《]?([\u4e00-\u9fa5]{2,16}?(?:法典|法|典|条例|办法|规定|解释))[》]?\s*"
+    r"第\s*([〇零一二三四五六七八九十百千两\d]+)\s*条"
+)
+
+
+def _int2cn(n: int) -> str:
+    d = "零一二三四五六七八九"
+    if n < 10:
+        return d[n]
+    if n < 20:
+        return "十" + (d[n % 10] if n % 10 else "")
+    out = ""
+    for unit, val in (("千", 1000), ("百", 100), ("十", 10), ("", 1)):
+        q = n // val
+        if q:
+            out += d[q] + unit
+        elif out and n % val:
+            out += "零"
+        n %= val
+    return out.replace("零零", "零").rstrip("零")
+
+
+_SOURCE_FILES_CACHE: Optional[List[str]] = None
+
+
+def _all_source_files() -> List[str]:
+    """索引里出现过的所有来源文件名（懒加载一次）。"""
+    global _SOURCE_FILES_CACHE
+    if _SOURCE_FILES_CACHE is None:
+        try:
+            got = vectorstore.get(include=["metadatas"])
+            _SOURCE_FILES_CACHE = sorted({
+                str(m.get("source_file") or m.get("source") or "").split("/")[-1]
+                for m in got["metadatas"]
+            } - {""})
+        except Exception:
+            _SOURCE_FILES_CACHE = []
+    return _SOURCE_FILES_CACHE
+
+
+def _exact_article_lookup(query: str) -> List[Document]:
+    """用户点名「《某法》第 N 条」时，按元数据把那一块直接取出来。
+
+    为什么必须单开一条路：
+        实测「《专利法》第三十六条是怎么规定的？」在 4,703 块里，**一个专利法的块
+        都进不了 top-5**（top1=0.4599，选出来的是民法典物权编）。原因是这类查询
+        除了法名和条号没有任何内容，cross-encoder 只能按"像不像法条"打分，
+        而 52 部法律的条文长得都差不多。
+        它的本质是精确匹配 —— 法名决定文件、条号决定段落 —— 不该交给语义重排。
+
+    触发条件很窄：正则命中 + 文件名在索引里真的存在 + 该块正文确实含这个条号。
+    任一条不满足就返回空，走原来的检索。真实企业语料没有「第 N 条」结构，
+    所以这条分支在生产库上永远不会被触发。
+    """
+    q = (query or "").strip()
+    m = _ARTICLE_REF_RE.search(q)
+    if not m:
+        return []
+    law = m.group(1).strip()
+    num = m.group(2).strip()
+    cn = num if not num.isdigit() else _int2cn(int(num))
+    if not law or not cn:
+        return []
+
+    files = [f for f in _all_source_files()
+             if f in (f"{law}.md", f"{law}.txt") or f.startswith(f"{law}_")]
+    if not files:
+        return []
+
+    needle = f"第{cn}条"
+    for fname in files:
+        try:
+            got = vectorstore.get(where={"source_file": fname},
+                                  include=["documents", "metadatas"])
+        except Exception:
+            continue
+        docs = [Document(page_content=t, metadata=md or {})
+                for t, md in zip(got.get("documents") or [], got.get("metadatas") or [])
+                if needle in (t or "")]
+        if docs:
+            # 同一块里可能连着好几条，按条号出现位置排，最靠前的优先
+            docs.sort(key=lambda d: d.page_content.find(needle))
+            return docs[:2]
+    return []
+
+
 def _search_knowledge_base_impl(query: str = "", original_query: str = "") -> str:
     """真正的检索实现，不带缓存。对外暴露的是下面的 search_knowledge_base。
 
@@ -365,6 +455,19 @@ def _search_knowledge_base_impl(query: str = "", original_query: str = "") -> st
             return "检索问题为空，请重新描述你的问题。"
 
         logger.info(f"🔎 检索 query(改写后): {rewritten_query!r} | 用户原话: {raw_query!r}")
+
+        # 引用型问句（"《专利法》第三十六条"）先走精确查找：这类查询没有语义内容，
+        # 交给向量+重排会稳定跑偏，见 _exact_article_lookup 的说明。
+        exact_docs = _exact_article_lookup(search_query)
+        if exact_docs:
+            logger.info(f"📖 条文精确命中 {len(exact_docs)} 块："
+                        f"{_doc_source(exact_docs[0].metadata)}")
+            _obs.current().note(route="exact_article", candidates=len(exact_docs),
+                                top1=0.9, chunks=len(exact_docs))
+            return "\n\n---\n\n".join(
+                f"【来源：{_doc_source(d.metadata)}】【置信度：0.9000】\n{d.page_content}"
+                for d in exact_docs
+            )
 
         # 实体过滤器只认「用户本轮原话」里的实体：
         #   - 用户问"小智喜欢什么"，哪怕 query 被写成了"加里奥和小智…"，过滤器也只留"小智"
@@ -512,7 +615,7 @@ def _search_knowledge_base_impl(query: str = "", original_query: str = "") -> st
 
         results = []
         for doc, _rank_score, raw in top_docs:
-            source = doc.metadata.get("source", "未知来源")
+            source = _doc_source(doc.metadata)
             results.append(f"【来源：{source}】【置信度：{raw:.4f}】\n{doc.page_content}")
 
         # 因果类问题：把图谱里的固有属性放在**最后**。
@@ -1475,6 +1578,25 @@ _NO_EVIDENCE_MARKERS = (
     "检索工具执行失败",
     "检索问题为空",
 )
+
+
+def _doc_source(meta: dict) -> str:
+    """从索引元数据里取出**可展示的来源名**。
+
+    为什么不能只读 metadata["source"]：
+        只有最早的 145 块索引（手工灌入）写了 `source`；走 ingest 管线建的
+        多格式索引（chroma_db_v2 / v3 / law）写的是 `source_file` + `source_path`。
+        只读 `source` 的话，整条多格式链路都会把来源标成「未知来源」——
+        前端看不出来源，评测比对 expected_source 也永远不命中，
+        表现出来就是"召回率 0.20"这种假故障。
+    """
+    for key in ("source_file", "source", "source_path"):
+        val = meta.get(key)
+        if val and str(val).strip():
+            # source_path 是绝对路径，展示与比对都要 basename
+            return _norm_source_name(os.path.basename(str(val).strip())
+                                     if key == "source_path" else str(val).strip())
+    return "未知来源"
 
 
 def _norm_source_name(name: str) -> str:

@@ -84,3 +84,7 @@ ab_fullcontext.json
 knowledge_base_v3/
 chroma_db_v3/
 scale_curve*.json
+
+# 法律语料（真实公开数据，可重建：bash scripts/fetch_laws.sh && python scripts/prepare_law_corpus.py）
+knowledge_base_law/
+chroma_db_law/

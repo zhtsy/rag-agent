@@ -95,6 +95,19 @@ def _split_table(table: str, size: int) -> List[str]:
     return out or [table]
 
 
+def _with_heading(body: str, heading: str) -> str:
+    """把所在章节标题写进正文第一行。
+
+    为什么不能只留在 metadata 里：一条法条正文是「第三十六条　发明专利的申请人
+    请求实质审查的时候…」，光看这段既不知道是哪部法，也不知道是第几章。
+    检索时更糟——52 部法律里都有「第三十六条」，纯向量/BM25 无法区分，
+    实测「《专利法》第三十六条」会召回商标法、刑法的同号条文。
+    拼进正文后，两个检索器和生成模型都能看到法名，这是廉价的上下文补全。
+    """
+    h = (heading or "").strip()
+    return f"{h}\n{body}" if h else body
+
+
 def chunk_doc(doc: Doc, size: int = 200, overlap: int = 40) -> List[Doc]:
     """单个 Doc → 若干块。每块 metadata 带 heading_path / is_table。"""
     blocks = _blocks(doc.text)
@@ -113,7 +126,7 @@ def chunk_doc(doc: Doc, size: int = 200, overlap: int = 40) -> List[Doc]:
             meta = dict(doc.metadata)
             meta["heading_path"] = buf_heading
             meta["is_table"] = False
-            out.append(Doc(body, meta))
+            out.append(Doc(_with_heading(body, buf_heading), meta))
         if carry and overlap > 0 and len(body) > overlap:
             tail = body[-overlap:]
             # 从标点后开始，避免把半句话当重叠
@@ -143,7 +156,7 @@ def chunk_doc(doc: Doc, size: int = 200, overlap: int = 40) -> List[Doc]:
                 m = dict(meta)
                 if len(pieces) > 1:
                     m["table_part"] = f"{idx}/{len(pieces)}"
-                out.append(Doc(piece, m))
+                out.append(Doc(_with_heading(piece, buf_heading), m))
             continue
 
         # 普通段落：超预算就先切句，再装箱
