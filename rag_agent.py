@@ -40,6 +40,7 @@ from bm25_retriever import bm25_retriever
 from embeddings_shared import get_embeddings
 from langchain_classic.retrievers import EnsembleRetriever
 from graph_retriever import entity_facts, search_knowledge_graph
+from kb_paths import resolve as resolve_chroma_dir
 from loguru import logger
 
 # 纯逻辑模块：置信度/拒答判定已搬出去，这样 pytest 不用加载模型就能测（见 tests/）
@@ -118,10 +119,51 @@ embedding_model = get_embeddings()
 # 而是静默新建一个**空库**，检索全空、却一切"正常"——最难查的一类故障。
 # 云端容器与本地项目根都是本文件所在目录，两者行为一致。
 _BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+# 目录统一由 kb_paths 解析：默认生产库；`RAG_CHROMA_DIR` 可切实验库。
+# 配错的路径（不存在 / 空库）会回落到生产库并告警——宁可跑旧索引，
+# 也不要起一个空库（空库表现为"什么都拒答"，看起来像模型坏了）。
+_CHROMA_DIR, _KB_NOTE = resolve_chroma_dir(_BASE_DIR)
+if _KB_NOTE:
+    logger.warning(f"⚠️ 索引目录回落：{_KB_NOTE}")
+logger.info(f"📚 索引目录: {_CHROMA_DIR}")
 vectorstore = Chroma(
-    persist_directory=os.path.join(_BASE_DIR, "chroma_db"),
+    persist_directory=_CHROMA_DIR,
     embedding_function=embedding_model
 )
+# 给 /health 用：不查到"现在到底连的哪套索引、多少块"，切索引出问题时
+# 只能靠翻日志猜。count 只算一次，不要放进请求路径。
+try:
+    _KB_CHUNKS = vectorstore._collection.count()
+except Exception:                       # 索引异常时 health 仍要能回 200
+    _KB_CHUNKS = -1
+
+
+def _index_has_entity_field(vs) -> bool:
+    """索引里到底有没有 `entity` 元数据。
+
+    实体过滤靠 `filter={"entity": ...}`，语料换了但没写这个字段时，过滤会把
+    结果清成 0 块 → 全部拒答。实测切到 v3 语料（3196 块、无 entity 字段）后，
+    「小智喜欢什么」直接答不出来，日志是 `实体过滤后剩余: 0 个块`。
+
+    所以启动时判一次：没有这个字段就整体跳过实体过滤（并打日志），
+    行为等价于"没建图谱的老索引"。判不出来时**当作有**，保持旧行为。
+    """
+    try:
+        got = vs.get(limit=20, include=["metadatas"])
+        return any("entity" in (m or {}) for m in (got.get("metadatas") or []))
+    except Exception:
+        return True
+
+
+ENTITY_FILTER_SUPPORTED = _index_has_entity_field(vectorstore)
+if not ENTITY_FILTER_SUPPORTED:
+    logger.warning("⚠️ 当前索引没有 entity 元数据，已跳过实体过滤（否则会全量拒答）")
+
+KB_INFO = {"dir": os.path.basename(_CHROMA_DIR.rstrip(os.sep)),
+           "path": _CHROMA_DIR, "chunks": _KB_CHUNKS,
+           "entity_meta": ENTITY_FILTER_SUPPORTED,
+           "rerank_window": _rp.candidate_window(_KB_CHUNKS,
+                                                 _rp.DEFAULT_RERANK_CANDIDATES)}
 retriever = vectorstore.as_retriever(search_kwargs={"k": 10})
 
 # 强制重排模型在 CPU 上运行，把宝贵的显存全留给 Qwen
@@ -328,6 +370,10 @@ def _search_knowledge_base_impl(query: str = "", original_query: str = "") -> st
         #   - 用户问"小智喜欢什么"，哪怕 query 被写成了"加里奥和小智…"，过滤器也只留"小智"
         #   - 用户问"他属于哪个国家"，原话没有实体，这时才允许用改写后 query 里的实体
         filter_entities = _extract_entities(raw_query) or _extract_entities(search_query)
+        if filter_entities and not ENTITY_FILTER_SUPPORTED:
+            # 索引里没有 entity 字段时，filter 一定是空集 —— 等于"强制拒答"。
+            # 这里降级为不过滤继续检索（启动时已告警一次）。
+            filter_entities = []
         if filter_entities:
             logger.info(f"🎯 实体过滤器: {filter_entities}")
 
@@ -405,7 +451,8 @@ def _search_knowledge_base_impl(query: str = "", original_query: str = "") -> st
         # 窗口、门槛、加成、top-k 的唯一来源是 retrieval_policy（来历见那个文件的文件头）。
         # 这里只负责"取下标 → 打分 → 交给策略选块"，不再自带任何阈值判断。
         max_candidates = int(
-            os.environ.get("RAG_RERANK_CANDIDATES", str(_rp.DEFAULT_RERANK_CANDIDATES))
+            os.environ.get("RAG_RERANK_CANDIDATES")
+            or _rp.candidate_window(_KB_CHUNKS, _rp.DEFAULT_RERANK_CANDIDATES)
         )
         keep = _rp.candidate_slice(len(docs), max_candidates)
         if len(keep) < len(docs):

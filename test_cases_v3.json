@@ -1,0 +1,579 @@
+[
+ {
+  "id": "V001",
+  "question": "苏州瑞运物流有限公司 的客户对接人是谁？",
+  "expected_answer": "秦丽（来源 customer_0170.txt）",
+  "expected_source": "customer_0170.txt",
+  "category": "直接检索",
+  "must_contain": [
+   "秦丽"
+  ],
+  "must_not_contain": []
+ },
+ {
+  "id": "V002",
+  "question": "宁波中达能源股份有限公司 的客户对接人是谁？",
+  "expected_answer": "许洋（来源 customer_0184.txt）",
+  "expected_source": "customer_0184.txt",
+  "category": "直接检索",
+  "must_contain": [
+   "许洋"
+  ],
+  "must_not_contain": []
+ },
+ {
+  "id": "V003",
+  "question": "苏州中捷医药有限公司 的客户对接人是谁？",
+  "expected_answer": "孙勇（来源 customer_0134.txt）",
+  "expected_source": "customer_0134.txt",
+  "category": "直接检索",
+  "must_contain": [
+   "孙勇"
+  ],
+  "must_not_contain": []
+ },
+ {
+  "id": "V004",
+  "question": "长沙鼎泰商贸集团有限公司 的客户对接人是谁？",
+  "expected_answer": "严雨桐（来源 customer_0204.txt）",
+  "expected_source": "customer_0204.txt",
+  "category": "直接检索",
+  "must_contain": [
+   "严雨桐"
+  ],
+  "must_not_contain": []
+ },
+ {
+  "id": "V005",
+  "question": "成都鼎泰医药集团有限公司 的客户对接人是谁？",
+  "expected_answer": "施静（来源 customer_0079.txt）",
+  "expected_source": "customer_0079.txt",
+  "category": "直接检索",
+  "must_contain": [
+   "施静"
+  ],
+  "must_not_contain": []
+ },
+ {
+  "id": "V006",
+  "question": "成都天和医药集团有限公司 的客户对接人是谁？",
+  "expected_answer": "姜斯宇（来源 customer_0175.txt）",
+  "expected_source": "customer_0175.txt",
+  "category": "直接检索",
+  "must_contain": [
+   "姜斯宇"
+  ],
+  "must_not_contain": []
+ },
+ {
+  "id": "V007",
+  "question": "苏州华源机械有限公司 的客户对接人是谁？",
+  "expected_answer": "朱伟（来源 customer_0050.txt）",
+  "expected_source": "customer_0050.txt",
+  "category": "直接检索",
+  "must_contain": [
+   "朱伟"
+  ],
+  "must_not_contain": []
+ },
+ {
+  "id": "V008",
+  "question": "合肥新泰能源股份有限公司 的客户对接人是谁？",
+  "expected_answer": "褚思远（来源 customer_0215.txt）",
+  "expected_source": "customer_0215.txt",
+  "category": "直接检索",
+  "must_contain": [
+   "褚思远"
+  ],
+  "must_not_contain": []
+ },
+ {
+  "id": "V009",
+  "question": "南京宏安电子有限公司 的客户对接人是谁？",
+  "expected_answer": "尤磊（来源 customer_0121.txt）",
+  "expected_source": "customer_0121.txt",
+  "category": "直接检索",
+  "must_contain": [
+   "尤磊"
+  ],
+  "must_not_contain": []
+ },
+ {
+  "id": "V010",
+  "question": "成都宏捷物流股份有限公司 的客户对接人是谁？",
+  "expected_answer": "吴伟（来源 customer_0019.txt）",
+  "expected_source": "customer_0019.txt",
+  "category": "直接检索",
+  "must_contain": [
+   "吴伟"
+  ],
+  "must_not_contain": []
+ },
+ {
+  "id": "V011",
+  "question": "合同 HT-2026-0121 的合同总金额是多少万元？",
+  "expected_answer": "476.2（来源 HT-2026-0121.pdf）",
+  "expected_source": "HT-2026-0121.pdf",
+  "category": "表格检索",
+  "must_contain": [
+   "476.2"
+  ],
+  "must_not_contain": []
+ },
+ {
+  "id": "V012",
+  "question": "合同 HT-2026-0122 的合同总金额是多少万元？",
+  "expected_answer": "479.9（来源 HT-2026-0122.pdf）",
+  "expected_source": "HT-2026-0122.pdf",
+  "category": "表格检索",
+  "must_contain": [
+   "479.9"
+  ],
+  "must_not_contain": []
+ },
+ {
+  "id": "V013",
+  "question": "合同 HT-2026-0010 的合同总金额是多少万元？",
+  "expected_answer": "65.5（来源 HT-2026-0010.pdf）",
+  "expected_source": "HT-2026-0010.pdf",
+  "category": "表格检索",
+  "must_contain": [
+   "65.5"
+  ],
+  "must_not_contain": []
+ },
+ {
+  "id": "V014",
+  "question": "合同 HT-2026-0151 的合同总金额是多少万元？",
+  "expected_answer": "587.2（来源 HT-2026-0151.pdf）",
+  "expected_source": "HT-2026-0151.pdf",
+  "category": "表格检索",
+  "must_contain": [
+   "587.2"
+  ],
+  "must_not_contain": []
+ },
+ {
+  "id": "V015",
+  "question": "合同 HT-2026-0044 的合同总金额是多少万元？",
+  "expected_answer": "191.3（来源 HT-2026-0044.pdf）",
+  "expected_source": "HT-2026-0044.pdf",
+  "category": "表格检索",
+  "must_contain": [
+   "191.3"
+  ],
+  "must_not_contain": []
+ },
+ {
+  "id": "V016",
+  "question": "合同 HT-2026-0076 的合同总金额是多少万元？",
+  "expected_answer": "309.7（来源 HT-2026-0076.pdf）",
+  "expected_source": "HT-2026-0076.pdf",
+  "category": "表格检索",
+  "must_contain": [
+   "309.7"
+  ],
+  "must_not_contain": []
+ },
+ {
+  "id": "V017",
+  "question": "合同 HT-2026-0102 的合同总金额是多少万元？",
+  "expected_answer": "405.9（来源 HT-2026-0102.pdf）",
+  "expected_source": "HT-2026-0102.pdf",
+  "category": "表格检索",
+  "must_contain": [
+   "405.9"
+  ],
+  "must_not_contain": []
+ },
+ {
+  "id": "V018",
+  "question": "合同 HT-2026-0056 的合同总金额是多少万元？",
+  "expected_answer": "235.7（来源 HT-2026-0056.pdf）",
+  "expected_source": "HT-2026-0056.pdf",
+  "category": "表格检索",
+  "must_contain": [
+   "235.7"
+  ],
+  "must_not_contain": []
+ },
+ {
+  "id": "V019",
+  "question": "IVS-2300 的额定吞吐量是多少件每小时？",
+  "expected_answer": "1799（来源 IVS-2300.md）",
+  "expected_source": "IVS-2300.md",
+  "category": "表格检索",
+  "must_contain": [
+   "1799"
+  ],
+  "must_not_contain": []
+ },
+ {
+  "id": "V020",
+  "question": "WMS-2600 的额定吞吐量是多少件每小时？",
+  "expected_answer": "1022（来源 WMS-2600.md）",
+  "expected_source": "WMS-2600.md",
+  "category": "表格检索",
+  "must_contain": [
+   "1022"
+  ],
+  "must_not_contain": []
+ },
+ {
+  "id": "V021",
+  "question": "IVS-2710 的额定吞吐量是多少件每小时？",
+  "expected_answer": "1947（来源 IVS-2710.md）",
+  "expected_source": "IVS-2710.md",
+  "category": "表格检索",
+  "must_contain": [
+   "1947"
+  ],
+  "must_not_contain": []
+ },
+ {
+  "id": "V022",
+  "question": "EMS-2520 的额定吞吐量是多少件每小时？",
+  "expected_answer": "2317（来源 EMS-2520.md）",
+  "expected_source": "EMS-2520.md",
+  "category": "表格检索",
+  "must_contain": [
+   "2317"
+  ],
+  "must_not_contain": []
+ },
+ {
+  "id": "V023",
+  "question": "DMP-2710 的额定吞吐量是多少件每小时？",
+  "expected_answer": "2835（来源 DMP-2710.md）",
+  "expected_source": "DMP-2710.md",
+  "category": "表格检索",
+  "must_contain": [
+   "2835"
+  ],
+  "must_not_contain": []
+ },
+ {
+  "id": "V024",
+  "question": "WMS-2000 的额定吞吐量是多少件每小时？",
+  "expected_answer": "800（来源 WMS-2000.md）",
+  "expected_source": "WMS-2000.md",
+  "category": "表格检索",
+  "must_contain": [
+   "800"
+  ],
+  "must_not_contain": []
+ },
+ {
+  "id": "V025",
+  "question": "故障码 E102 由哪个部门负责处置？",
+  "expected_answer": "研发中心（来源 SOP_E102.md）",
+  "expected_source": "SOP_E102.md",
+  "category": "直接检索",
+  "must_contain": [
+   "研发中心"
+  ],
+  "must_not_contain": []
+ },
+ {
+  "id": "V026",
+  "question": "故障码 E103 由哪个部门负责处置？",
+  "expected_answer": "售后服务部（来源 SOP_E103.md）",
+  "expected_source": "SOP_E103.md",
+  "category": "直接检索",
+  "must_contain": [
+   "售后服务部"
+  ],
+  "must_not_contain": []
+ },
+ {
+  "id": "V027",
+  "question": "故障码 E107 由哪个部门负责处置？",
+  "expected_answer": "交付实施部（来源 SOP_E107.md）",
+  "expected_source": "SOP_E107.md",
+  "category": "直接检索",
+  "must_contain": [
+   "交付实施部"
+  ],
+  "must_not_contain": []
+ },
+ {
+  "id": "V028",
+  "question": "故障码 E101 由哪个部门负责处置？",
+  "expected_answer": "售前解决方案部（来源 SOP_E101.md）",
+  "expected_source": "SOP_E101.md",
+  "category": "直接检索",
+  "must_contain": [
+   "售前解决方案部"
+  ],
+  "must_not_contain": []
+ },
+ {
+  "id": "V029",
+  "question": "故障码 E104 由哪个部门负责处置？",
+  "expected_answer": "交付实施部（来源 SOP_E104.md）",
+  "expected_source": "SOP_E104.md",
+  "category": "直接检索",
+  "must_contain": [
+   "交付实施部"
+  ],
+  "must_not_contain": []
+ },
+ {
+  "id": "V030",
+  "question": "故障码 E106 由哪个部门负责处置？",
+  "expected_answer": "售后服务部（来源 SOP_E106.md）",
+  "expected_source": "SOP_E106.md",
+  "category": "直接检索",
+  "must_contain": [
+   "售后服务部"
+  ],
+  "must_not_contain": []
+ },
+ {
+  "id": "V031",
+  "question": "供应商 广州远通食品股份有限公司 的结算账期是多少天？",
+  "expected_answer": "75（来源 supplier_017.docx）",
+  "expected_source": "supplier_017.docx",
+  "category": "表格检索",
+  "must_contain": [
+   "75"
+  ],
+  "must_not_contain": []
+ },
+ {
+  "id": "V032",
+  "question": "供应商 杭州宏昌医药有限公司 的结算账期是多少天？",
+  "expected_answer": "45（来源 supplier_050.docx）",
+  "expected_source": "supplier_050.docx",
+  "category": "表格检索",
+  "must_contain": [
+   "45"
+  ],
+  "must_not_contain": []
+ },
+ {
+  "id": "V033",
+  "question": "供应商 苏州恒捷智能股份有限公司 的结算账期是多少天？",
+  "expected_answer": "90（来源 supplier_025.docx）",
+  "expected_source": "supplier_025.docx",
+  "category": "表格检索",
+  "must_contain": [
+   "90"
+  ],
+  "must_not_contain": []
+ },
+ {
+  "id": "V034",
+  "question": "制度里的「密码更换周期」标准是多少？",
+  "expected_answer": "80（来源 policy_04.md）",
+  "expected_source": "policy_04.md",
+  "category": "表格检索",
+  "must_contain": [
+   "80"
+  ],
+  "must_not_contain": []
+ },
+ {
+  "id": "V035",
+  "question": "制度里的「住宿标准」标准是多少？",
+  "expected_answer": "380（来源 policy_00.md）",
+  "expected_source": "policy_00.md",
+  "category": "表格检索",
+  "must_contain": [
+   "380"
+  ],
+  "must_not_contain": []
+ },
+ {
+  "id": "V036",
+  "question": "制度里的「数据导出审批层级」标准是多少？",
+  "expected_answer": "3（来源 policy_05.md）",
+  "expected_source": "policy_05.md",
+  "category": "表格检索",
+  "must_contain": [
+   "3"
+  ],
+  "must_not_contain": []
+ },
+ {
+  "id": "V037",
+  "question": "2026 年第2季度华中区的营业收入是多少万元？",
+  "expected_answer": "2470（来源 report_2026Q2_华中.pdf）",
+  "expected_source": "report_2026Q2_华中.pdf",
+  "category": "表格检索",
+  "must_contain": [
+   "2470"
+  ],
+  "must_not_contain": [
+   "4410",
+   "2110"
+  ]
+ },
+ {
+  "id": "V038",
+  "question": "2026 年第1季度华东区的营业收入是多少万元？",
+  "expected_answer": "4410（来源 report_2026Q1_华东.pdf）",
+  "expected_source": "report_2026Q1_华东.pdf",
+  "category": "表格检索",
+  "must_contain": [
+   "4410"
+  ],
+  "must_not_contain": [
+   "2470",
+   "2110"
+  ]
+ },
+ {
+  "id": "V039",
+  "question": "2026 年第1季度西南区的营业收入是多少万元？",
+  "expected_answer": "2110（来源 report_2026Q1_西南.pdf）",
+  "expected_source": "report_2026Q1_西南.pdf",
+  "category": "表格检索",
+  "must_contain": [
+   "2110"
+  ],
+  "must_not_contain": [
+   "2470",
+   "4410"
+  ]
+ },
+ {
+  "id": "V040",
+  "question": "2026 年第1季度华南区的营业收入是多少万元？",
+  "expected_answer": "3290（来源 report_2026Q1_华南.pdf）",
+  "expected_source": "report_2026Q1_华南.pdf",
+  "category": "表格检索",
+  "must_contain": [
+   "3290"
+  ],
+  "must_not_contain": [
+   "2470",
+   "4410"
+  ]
+ },
+ {
+  "id": "RT001",
+  "question": "根据知识库，小智喜欢什么？",
+  "expected_answer": "小智喜欢python、打游戏、吃羊肉串",
+  "expected_source": "test.txt",
+  "category": "直接检索",
+  "must_contain": [
+   "python",
+   "游戏"
+  ],
+  "must_not_contain": [
+   "小赵",
+   "小王",
+   "小明"
+  ]
+ },
+ {
+  "id": "RT003",
+  "question": "根据知识库，小明喜欢什么？",
+  "expected_answer": "小明喜欢唱跳rap打篮球，不喜欢吃牛肉",
+  "expected_source": "test1.txt",
+  "category": "直接检索",
+  "must_contain": [
+   "唱跳",
+   "篮球"
+  ],
+  "must_not_contain": [
+   "小智",
+   "小赵",
+   "小王"
+  ]
+ },
+ {
+  "id": "RT006",
+  "question": "根据知识库，小李养了什么宠物？",
+  "expected_answer": "小李养了一只橘猫叫代码",
+  "expected_source": "test5.txt",
+  "category": "直接检索",
+  "must_contain": [
+   "橘猫",
+   "代码"
+  ],
+  "must_not_contain": [
+   "小张",
+   "小刘",
+   "小陈"
+  ]
+ },
+ {
+  "id": "RT008",
+  "question": "根据知识库，小刘最喜欢吃什么？",
+  "expected_answer": "小刘最喜欢吃火锅，尤其是毛肚和鸭血",
+  "expected_source": "test7.txt",
+  "category": "直接检索",
+  "must_contain": [
+   "火锅",
+   "毛肚"
+  ],
+  "must_not_contain": [
+   "小陈",
+   "小周",
+   "小吴"
+  ]
+ },
+ {
+  "id": "RT009",
+  "question": "根据知识库，小陈养了什么宠物？",
+  "expected_answer": "小陈养了一只金毛叫豆豆",
+  "expected_source": "test8.txt",
+  "category": "直接检索",
+  "must_contain": [
+   "金毛",
+   "豆豆"
+  ],
+  "must_not_contain": [
+   "小李",
+   "小张",
+   "小刘"
+  ]
+ },
+ {
+  "id": "RT010",
+  "question": "根据知识库，小周最拿手的菜是什么？",
+  "expected_answer": "小周最拿手的是开水白菜",
+  "expected_source": "test9.txt",
+  "category": "直接检索",
+  "must_contain": [
+   "开水白菜"
+  ],
+  "must_not_contain": [
+   "小陈",
+   "小吴"
+  ]
+ },
+ {
+  "id": "RT011",
+  "question": "根据知识库，小吴最近在学什么？",
+  "expected_answer": "小吴最近在学潜水",
+  "expected_source": "test10.txt",
+  "category": "直接检索",
+  "must_contain": [
+   "潜水"
+  ],
+  "must_not_contain": [
+   "小周",
+   "小陈"
+  ]
+ },
+ {
+  "id": "RC001",
+  "question": "根据知识库，小张养了什么宠物？",
+  "expected_answer": "小张养了一只叫布丁的仓鼠",
+  "expected_source": "test6.txt",
+  "category": "直接检索",
+  "must_contain": [
+   "仓鼠",
+   "布丁"
+  ],
+  "must_not_contain": [
+   "金毛",
+   "橘猫",
+   "拿铁",
+   "豆豆"
+  ]
+ }
+]

@@ -7,9 +7,13 @@ from langchain_core.retrievers import BaseRetriever
 from typing import List
 
 from embeddings_shared import get_embeddings
+from kb_paths import resolve as resolve_chroma_dir
 
 # 与 rag_agent 同一口径的绝对路径：相对路径在别的 cwd 下会静默建空库。
-PERSIST_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "chroma_db")
+# 也必须与 rag_agent 读**同一个目录**——两处分别写死的话，切索引时漏改一处
+# 就会出现"向量查 A 语料、BM25 查 B 语料"的混合结果，且不报任何错。
+_BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+PERSIST_DIR, KB_DIR_NOTE = resolve_chroma_dir(_BASE_DIR)
 
 ENTITY_TERMS = [
     "小智", "小明", "小王", "小赵", "小李", "小张", "小刘", "小陈", "小周", "小吴",

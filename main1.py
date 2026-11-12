@@ -39,6 +39,7 @@ from rag_agent import (
     aget_session_meta,
     finalize_turn,
     search_knowledge_base,
+    KB_INFO,
 )
 from memory_context import resolve_session_id
 from api_auth import api_key as _configured_api_key
@@ -207,6 +208,9 @@ def health():
         "inflight": _INFLIGHT,
         "limit": MAX_CONCURRENT_STREAMS,
         "cache": _retrieval_cache.get_cache().stats(),
+        # 当前连的哪套索引、多少块。切实验索引后第一眼就该能看见，
+        # 而不是"分数掉了 → 翻日志 → 才发现连错库"。
+        "kb": KB_INFO,
     }
 
 

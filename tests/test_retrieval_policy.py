@@ -225,3 +225,26 @@ def test_extract_keywords_without_jieba_is_safe():
 
 def test_keyword_hit_count():
     assert rp.keyword_hit_count(["含小陈", "无关"], [0, 1], ["小陈"]) == 1
+
+
+# ========== 窗口必须随索引规模放大 ==========
+#
+# 事故：语料从 145 块扩到 3196 块后，「苏州瑞运物流有限公司的对接人是谁」的
+# 20 个候选里正确那块排第 12 位，被窗口 10 截在门外 → top1 只有 0.1096
+# → 低于 0.15 门槛 → 判「检索落空」→ 拒答。检索其实找到了，是窗口太小。
+def test_window_keeps_production_scale_unchanged():
+    """生产规模（145 块）必须与原常量逐字一致，行为不能变。"""
+    assert rp.candidate_window(0) == rp.DEFAULT_RERANK_CANDIDATES
+    assert rp.candidate_window(145) == rp.DEFAULT_RERANK_CANDIDATES
+    assert rp.candidate_window(300) == rp.DEFAULT_RERANK_CANDIDATES
+
+
+def test_window_grows_with_index():
+    assert rp.candidate_window(301) > rp.DEFAULT_RERANK_CANDIDATES
+    assert rp.candidate_window(1000) >= 16
+    assert rp.candidate_window(3196) >= 20
+
+
+def test_window_never_exceeds_sane_bound():
+    for n in (0, 145, 300, 1000, 3196):
+        assert 1 <= rp.candidate_window(n) <= 24

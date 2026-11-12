@@ -111,6 +111,28 @@ def candidate_slice(total: int, max_candidates: int) -> range:
     return range(min(total, max_candidates))
 
 
+def candidate_window(index_size: int, default: int = DEFAULT_RERANK_CANDIDATES) -> int:
+    """按索引规模决定 rerank 候选窗口（纯函数，可单测）。
+
+    为什么不能用一个常量跑所有库
+    ────────────────────────
+    145 块时 10 够用（上面 T019 的教训是 6 不够）。但语料涨到 3000 块后，
+    正确块经常落在第 11–20 名：实测 v3 语料上「苏州瑞运物流的对接人是谁」，
+    20 个候选里正确那块排在第 12 位，被截在门外 → top1 只有 0.1096 →
+    低于门槛 → 判"检索落空"→ 拒答。**问题不在检索没找到，在窗口太小。**
+
+    代价是线性增加的重排耗时（每对约 0.3 s CPU），所以分档而不是一律放大：
+    生产规模（≤300 块）保持原值，行为完全不变。
+    """
+    if index_size <= 0:
+        return default
+    if index_size <= 300:
+        return default
+    if index_size <= 1000:
+        return max(default, 16)
+    return max(default, 24)
+
+
 def select(
     contents: Sequence[str],
     scores,

@@ -79,3 +79,8 @@ _cleanup.sh
 # 多格式实验索引（可随时重建：python scripts/build_kb_v2.py）
 chroma_db_v2/
 ab_fullcontext.json
+
+# 合成语料与第二套索引（可随时重建：python scripts/gen_corpus_v3.py && build_kb_v2.py）
+knowledge_base_v3/
+chroma_db_v3/
+scale_curve*.json
