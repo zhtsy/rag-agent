@@ -135,6 +135,10 @@ def main() -> int:
     print(f"🔢 向量化 {len(lc_docs)} 块…")
     Chroma.from_documents(documents=lc_docs, embedding=get_embeddings(),
                           persist_directory=args.out)
+    # 记下用的是哪个嵌入模型：换模型重建后忘了重建另一套库时，
+    # 查询向量和文档向量会默默跨空间，检索只是变差、不会报错。
+    from index_meta import write_signature
+    print(f"🔖 嵌入签名: {write_signature(args.out)}")
     print(f"🎉 完成: {args.out}")
 
     cnt = Counter(d.metadata.get("ext", "?") for d in chunks)

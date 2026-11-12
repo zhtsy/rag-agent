@@ -133,6 +133,31 @@ def candidate_window(index_size: int, default: int = DEFAULT_RERANK_CANDIDATES) 
     return max(default, 24)
 
 
+def rerank_window(index_size: int, override=None,
+                  default: int = DEFAULT_RERANK_CANDIDATES) -> int:
+    """实际生效的窗口：环境变量只能**调大**，压不过规模下限。
+
+    `.env` 里写着 `RAG_RERANK_CANDIDATES=10`，而代码原来写的是
+    `env or candidate_window(...)` —— 环境变量永远为真，自适应窗口一次都没生效过。
+    切到 7,000 块语料后日志仍是 `rerank 候选截断: 20 → 10`：正确块落在第 11–20 名
+    时照样被截掉，"按规模放大窗口"这个修复等于白加。
+
+    所以这里把两者的关系定死：规模下限是**地板**，环境变量只能在上面加，
+    不能把它按回地板以下。要极端省算力时把 override 调大、把语料裁小，而不是
+    悄悄把窗口压窄——那种省法只会换来"检索命中却答不出来"。
+    """
+    base = candidate_window(index_size, default)
+    if override is None or (isinstance(override, str) and not override.strip()):
+        return base
+    try:
+        want = int(override)
+    except (TypeError, ValueError):
+        return base
+    if want <= 0:                      # 0/负数沿用"不截断"的旧语义 → 交回默认档
+        return base
+    return max(base, want)
+
+
 def select(
     contents: Sequence[str],
     scores,

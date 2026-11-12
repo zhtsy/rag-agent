@@ -41,6 +41,7 @@ from embeddings_shared import get_embeddings
 from langchain_classic.retrievers import EnsembleRetriever
 from graph_retriever import entity_facts, search_knowledge_graph
 from kb_paths import resolve as resolve_chroma_dir
+from index_meta import check_signature
 from loguru import logger
 
 # 纯逻辑模块：置信度/拒答判定已搬出去，这样 pytest 不用加载模型就能测（见 tests/）
@@ -159,11 +160,22 @@ ENTITY_FILTER_SUPPORTED = _index_has_entity_field(vectorstore)
 if not ENTITY_FILTER_SUPPORTED:
     logger.warning("⚠️ 当前索引没有 entity 元数据，已跳过实体过滤（否则会全量拒答）")
 
+# 嵌入模型对不对得上：维度相同但模型不同是**合法**的（都是 768 维），
+# 不会报错，只会让排序悄悄变差 —— 实测过一次，正确块余弦 0.6921 低于
+# 无关块 0.7221，整条链路一声不响，只在评测里表现为"定义式 0.25"。
+_EMBED_CHECK = check_signature(_CHROMA_DIR)
+if _EMBED_CHECK["status"] == "mismatch":
+    logger.warning(f"⚠️ 嵌入模型不一致：{_EMBED_CHECK['note']}；"
+                   f"请用同一模型重建索引，或改用 {_EMBED_CHECK['stored']}")
+
 KB_INFO = {"dir": os.path.basename(_CHROMA_DIR.rstrip(os.sep)),
            "path": _CHROMA_DIR, "chunks": _KB_CHUNKS,
            "entity_meta": ENTITY_FILTER_SUPPORTED,
-           "rerank_window": _rp.candidate_window(_KB_CHUNKS,
-                                                 _rp.DEFAULT_RERANK_CANDIDATES)}
+           "embed": _EMBED_CHECK["current"],
+           "embed_status": _EMBED_CHECK["status"],
+           "rerank_window": _rp.rerank_window(_KB_CHUNKS,
+                                              os.environ.get("RAG_RERANK_CANDIDATES"),
+                                              _rp.DEFAULT_RERANK_CANDIDATES)}
 retriever = vectorstore.as_retriever(search_kwargs={"k": 10})
 
 # 强制重排模型在 CPU 上运行，把宝贵的显存全留给 Qwen
@@ -431,7 +443,13 @@ def _exact_article_lookup(query: str) -> List[Document]:
                 for t, md in zip(got.get("documents") or [], got.get("metadatas") or [])
                 if needle in (t or "")]
         if docs:
-            # 同一块里可能连着好几条，按条号出现位置排，最靠前的优先
+            # 按条切块后每块都带 `article`，能直接判"这块就是那条"。
+            # 只按条号出现位置排不够稳：法条正文里常有「依照第三十六条…」这种
+            # 交叉引用，位置比块前缀更靠前，会把引用块排到真身上面。
+            exact = [d for d in docs if (d.metadata or {}).get("article") == needle]
+            if exact:
+                return exact[:2]
+            # 旧索引（定长切块）没有 article 字段，退回按出现位置排序
             docs.sort(key=lambda d: d.page_content.find(needle))
             return docs[:2]
     return []
@@ -553,9 +571,10 @@ def _search_knowledge_base_impl(query: str = "", original_query: str = "") -> st
         # padding 是按 batch 内最长动态算的，改它纯属空操作。
         # 窗口、门槛、加成、top-k 的唯一来源是 retrieval_policy（来历见那个文件的文件头）。
         # 这里只负责"取下标 → 打分 → 交给策略选块"，不再自带任何阈值判断。
-        max_candidates = int(
-            os.environ.get("RAG_RERANK_CANDIDATES")
-            or _rp.candidate_window(_KB_CHUNKS, _rp.DEFAULT_RERANK_CANDIDATES)
+        # 窗口 = max(规模下限, 环境变量)。环境变量只能调大 —— 见 rerank_window 的说明。
+        max_candidates = _rp.rerank_window(
+            _KB_CHUNKS, os.environ.get("RAG_RERANK_CANDIDATES"),
+            _rp.DEFAULT_RERANK_CANDIDATES,
         )
         keep = _rp.candidate_slice(len(docs), max_candidates)
         if len(keep) < len(docs):

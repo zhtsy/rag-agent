@@ -248,3 +248,28 @@ def test_window_grows_with_index():
 def test_window_never_exceeds_sane_bound():
     for n in (0, 145, 300, 1000, 3196):
         assert 1 <= rp.candidate_window(n) <= 24
+
+
+# ========== 环境变量只能调大窗口，不能压过规模下限 ==========
+#
+# 事故：.env 里写死 RAG_RERANK_CANDIDATES=10，而代码是 "env or candidate_window(...)"，
+# 环境变量永远为真 → 自适应窗口一次都没生效。7,000 块语料上日志仍是
+# "rerank 候选截断: 20 → 10"，正确块落在第 11–20 名照样被截掉。
+def test_env_override_cannot_shrink_below_scale_floor():
+    assert rp.rerank_window(7082, "10") == 24      # 环境变量写 10 也压不下去
+    assert rp.rerank_window(7082, 10) == 24
+
+
+def test_env_override_can_enlarge():
+    assert rp.rerank_window(7082, "32") == 32
+    assert rp.rerank_window(145, "30") == 30
+
+
+def test_env_unset_or_junk_falls_back_to_floor():
+    for bad in (None, "", "  ", "abc", "0", -3):
+        assert rp.rerank_window(7082, bad) == 24
+
+
+def test_production_scale_unchanged_under_override():
+    # 生产 145 块 + .env 的 10：和旧行为逐字一致
+    assert rp.rerank_window(145, "10") == 10

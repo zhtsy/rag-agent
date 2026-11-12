@@ -24,6 +24,18 @@ from .loaders import Doc
 
 _HEADING_RE = re.compile(r"^(#{1,6})\s+(.*\S)\s*$")
 
+# 「第一条」「第三十六条」「第一百二十条之一」——法条类文档的硬边界
+_ARTICLE_RE = re.compile(
+    r"^第[〇零一二三四五六七八九十百千两\d]{1,12}条(?:之[〇零一二三四五六七八九十]{1,3})?(?=[\s　]|$)"
+)
+
+
+def _article_of(text: str) -> str:
+    """段落是否以条号开头；是则返回「第三十六条」，否则空串。"""
+    first = (text or "").lstrip("\n").split("\n", 1)[0].strip()
+    m = _ARTICLE_RE.match(first)
+    return m.group(0) if m else ""
+
 
 def _blocks(text: str) -> List[Tuple[str, int, str]]:
     """把文本切成结构块：(kind, level, content)。kind ∈ heading/table/para。"""
@@ -109,13 +121,37 @@ def _with_heading(body: str, heading: str) -> str:
 
 
 def chunk_doc(doc: Doc, size: int = 200, overlap: int = 40) -> List[Doc]:
-    """单个 Doc → 若干块。每块 metadata 带 heading_path / is_table。"""
+    """单个 Doc → 若干块。每块 metadata 带 heading_path / is_table / article。
+
+    两条路：
+    * **法条类**（正文里连续出现 ≥5 个「第 N 条」）：条号是硬边界，一条一块。
+    * 其余文档：沿用「先切结构、再按预算装箱」。
+
+    为什么要给法条单开一条路
+    ───────────────────────
+    定长 200 字装箱会把相邻两条塞进同一块。实测《专利法》第二条回答「发明是指
+    什么」时，块里前半是第一条（立法目的）、后半才是定义，向量被前者稀释，
+    定义式题 12 条只拿 0.333。这不是检索坏了，是切块没有尊重文档的语义单元——
+    法条自带编号，本来就有明确边界，不该按字数切断。
+
+    处理超长条时，续块必须重新带上「法名 > 章 > 条」：否则第二块只剩「（二）…」
+    这样的枚举项，既不知道是哪部法，也不知道是第几条，等于把一块废料塞进索引。
+    """
     blocks = _blocks(doc.text)
+    article_mode = sum(
+        1 for kind, _, content in blocks if kind == "para" and _article_of(content)
+    ) >= 5
     out: List[Doc] = []
     stack: List[Tuple[int, str]] = []   # (level, title)
     buf: List[str] = []
     buf_len = 0
     buf_heading = ""
+    cur_article = ""
+
+    def _prefix() -> str:
+        if not cur_article:
+            return buf_heading
+        return f"{buf_heading} > {cur_article}" if buf_heading else cur_article
 
     def flush(carry: bool = True) -> None:
         nonlocal buf, buf_len
@@ -126,7 +162,9 @@ def chunk_doc(doc: Doc, size: int = 200, overlap: int = 40) -> List[Doc]:
             meta = dict(doc.metadata)
             meta["heading_path"] = buf_heading
             meta["is_table"] = False
-            out.append(Doc(_with_heading(body, buf_heading), meta))
+            if cur_article:
+                meta["article"] = cur_article
+            out.append(Doc(_with_heading(body, _prefix()), meta))
         if carry and overlap > 0 and len(body) > overlap:
             tail = body[-overlap:]
             # 从标点后开始，避免把半句话当重叠
@@ -144,6 +182,7 @@ def chunk_doc(doc: Doc, size: int = 200, overlap: int = 40) -> List[Doc]:
                 stack.pop()
             stack.append((level, content))
             buf_heading = " > ".join(t for _, t in stack)
+            cur_article = ""            # 换章了，条号前缀跟着失效
             continue
 
         if kind == "table":
@@ -151,23 +190,31 @@ def chunk_doc(doc: Doc, size: int = 200, overlap: int = 40) -> List[Doc]:
             meta = dict(doc.metadata)
             meta["heading_path"] = buf_heading
             meta["is_table"] = True
+            if cur_article:
+                meta["article"] = cur_article
             pieces = _split_table(content, size)
             for idx, piece in enumerate(pieces, start=1):
                 m = dict(meta)
                 if len(pieces) > 1:
                     m["table_part"] = f"{idx}/{len(pieces)}"
-                out.append(Doc(_with_heading(piece, buf_heading), m))
+                out.append(Doc(_with_heading(piece, _prefix()), m))
             continue
+
+        if article_mode:
+            art = _article_of(content)
+            if art:                     # 新的一条开始：上一条到此为止
+                flush(carry=False)
+                cur_article = art
 
         # 普通段落：超预算就先切句，再装箱
         if buf_len + len(content) + 1 > size and buf:
-            flush()
+            flush(carry=not article_mode)
         if len(content) > size:
             for sent in re.split(r"(?<=[。！？；\n])", content):
                 if not sent.strip():
                     continue
                 if buf_len + len(sent) > size and buf:
-                    flush()
+                    flush(carry=not article_mode)
                 buf.append(sent.strip())
                 buf_len += len(sent)
             continue
