@@ -75,3 +75,7 @@ _cleanup.sh
 .__wtest
 # 本机 Agent 工作目录
 .workbuddy/
+
+# 多格式实验索引（可随时重建：python scripts/build_kb_v2.py）
+chroma_db_v2/
+ab_fullcontext.json
