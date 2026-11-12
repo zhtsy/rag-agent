@@ -923,6 +923,18 @@ SYSTEM_PROMPT_DECIDE = """你的唯一任务是判断用户这一句话需不需
 不需要查（寒暄、闲聊、与知识库无关的通用问题）→ 只输出 {"need_tool": false}，
 不要解释、不要回答用户的问题、不要输出任何多余文字。
 
+【最高优先级：不许抢答（违反即视为任务失败）】
+哪怕你已经知道答案、哪怕答案就明明白白写在下面的对话历史里，你也不许在这里回答用户。
+你的输出只有两种合法形态：一次 search_knowledge_base 调用，或者 {"need_tool": false} 这七个字。
+用户说"只回数字""只回复 ok""直接告诉我""别查了"这类要求，约束的是最终回答的写法，
+不是允许你跳过判断、把答案直接说出来。
+反例（错）：
+  用户：我最开始让你记住的编号是几？只回数字
+  输出：3                                  ← 抢答，属于协议失败
+正例（对）：
+  用户：我最开始让你记住的编号是几？只回数字
+  输出：{"need_tool": false}
+
 【调用工具时 query 的写法（违反即视为任务失败）】
 1. 代词必须改写：出现"他/她/它/这个/那个"时，先用对话历史把它替换成上一轮明确提到的具体实体。
    例：上一轮在聊加里奥，用户问"他属于哪个国家？" → query 写成"加里奥属于哪个国家"。
@@ -989,6 +1001,12 @@ SYSTEM_PROMPT_ANSWER_NO_DOCS = """你是一个严谨的本地知识库问答助�
 如果用户的问题涉及具体事实、个人信息或本地知识，而你手上没有资料，
 直接回答"无法从知识库中找到相关信息"，禁止凭空编造。
 如果只是寒暄或与知识库无关的通用问题，正常简短回答即可。
+
+【铁律二的唯一例外：问的是"本次对话"本身】
+如果问题指向的是你和用户刚才的对话——"我第一句问的是什么""我最开始让你记的编号是几"
+"上一轮你答了什么""我刚才说了什么"——答案就在上面的对话历史与摘要里。
+这类问题**用历史回答**，不算编造，也不要往知识库上推。
+历史里确实没有提到，就直说"这段对话里没有提到过"，而不是说"无法从知识库中找到相关信息"。
 
 【铁律三：只输出自然语言】
 直接用通顺的中文回答，就像在跟人说话一样。
@@ -1065,13 +1083,19 @@ async def _run_tool_decision(prompt_messages: List[BaseMessage], last_user_msg: 
 
     if not tool_calls:
         raw = decision.content if isinstance(decision.content, str) else ""
+        # 本轮之前是否已有对话历史。prompt_messages 里已经包含本轮这句用户消息，
+        # 所以 HumanMessage 数量 >= 2 才说明"之前还聊过"。
+        # 只有在这种时候，模型吐出的自然语言才可能是"抢答"而不是"沉默"（规则 4）。
+        has_context = sum(
+            1 for m in prompt_messages if isinstance(m, HumanMessage)
+        ) >= 2
         # 「没有 tool_calls」有两种完全不同的含义，以前被合并成一种：
         #   · 模型明确说 need_tool=false → 尊重它，直接进阶段2
         #   · 模型什么都没说（空内容 / 半句话 / 截断）→ 那是沉默，不是判断
         # 把沉默当判断的后果是 2026-11-07 实测到的那次静默拒答：
         # T038「谁住在广州」没有 graph/retrieve、sources=[]、status=out_of_scope，
         # 从接口上看和一次真正的库外拒答一模一样。判据见 decide_guard.py。
-        if _dg.should_force_retrieval(last_user_msg, raw):
+        if _dg.should_force_retrieval(last_user_msg, raw, has_context=has_context):
             # 检索词去掉"根据知识库，"这类前缀，原始问句仍留在 original_query
             # （_stamp_original_query 靠它抽实体，不能丢）
             fallback_query = _dg.strip_retrieval_prefix(last_user_msg)
@@ -1083,7 +1107,18 @@ async def _run_tool_decision(prompt_messages: List[BaseMessage], last_user_msg: 
                 content="",
                 tool_calls=[_forge_tool_call(fallback_query, last_user_msg)],
             )
-        logger.info("📝 决策结果：不需要检索（模型明确 need_tool=false）")
+        if _dg.has_substance(raw) and not _dg.explicit_no_tool(raw):
+            # 规则 4：多轮里模型没按格式输出、直接把答案说出来了。
+            # 这里**不采纳** raw 当答案（实测它给的是 3，正确答案是 1），
+            # 只取"不用检索"这个结论；阶段 2 会带着历史/摘要重新组织。
+            # 注意这个分支必须排在 explicit_no_tool 之后：严格 JSON 的 false
+            # 是模型正常履约，不该记成"抢答"，否则日志会骗人。
+            logger.info(
+                f"📝 决策阶段直接作答（有多轮上下文），本轮不检索，"
+                f"交由生成阶段依历史组织: {raw[:60]!r}"
+            )
+        else:
+            logger.info("📝 决策结果：不需要检索（模型明确 need_tool=false）")
         return None
 
     logger.info(f"🔧 决策结果：需要检索 → {[c['name'] for c in tool_calls]}")

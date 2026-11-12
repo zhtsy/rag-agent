@@ -17,7 +17,9 @@
 import pytest
 
 from decide_guard import (
+    declares_need_tool,
     explicit_no_tool,
+    has_substance,
     requires_retrieval,
     should_force_retrieval,
     strip_retrieval_prefix,
@@ -162,3 +164,83 @@ def test_strip_prefix_never_returns_empty():
     """纯前缀（没内容）不能 strip 成空串，否则检索词就没了。"""
     assert strip_retrieval_prefix("根据知识库") == "根据知识库"
     assert strip_retrieval_prefix("根据知识库，") == "根据知识库，"
+
+
+# ----------------------------------------------------------------------
+# 5. 规则 4：多轮上下文里的"抢答"不等于"沉默"（2026-11-12）
+#
+# 事故形态：18 轮会话后问"我最开始让你记住的编号是几？只回数字"，
+# 决策模型直接输出 '3'（没给 tool_call），被判为沉默 → 强制检索 →
+# 知识库里没有"我的编号" → 检索落空 → 回"无法从知识库中找到相关信息"，
+# 而正确答案（1）就写在 49 字的摘要里。
+# ----------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("content", ["3", "1", "ok", "是 1", "编号是 1"])
+def test_context_answer_is_not_silence(content):
+    """有历史时，模型吐出的实质内容视为"想直接答"，不强制检索。"""
+    assert should_force_retrieval("我最开始让你记住的编号是几？", content, has_context=True) is False
+
+
+@pytest.mark.parametrize("content", ["3", "ok", "", None, "   ", "……", "！？"])
+def test_no_context_keeps_old_behavior(content):
+    """单轮（评测的全部形态）行为必须与旧版逐字一致：非严格 JSON 一律兜底。
+
+    这条是给 48 题基线兜底的护栏——放宽只在 has_context 为真时成立。
+    旧逻辑是 `return not explicit_no_tool(content)`，所以这些输入全部 True。
+    """
+    assert should_force_retrieval("小智喜欢什么", content, has_context=False) is True
+
+
+def test_context_does_not_rescue_empty_or_symbols():
+    """有历史也不能把"纯符号/空白"当成回答——那还是沉默。"""
+    for content in ("", None, "   ", "……", "！！！", "\n\n"):
+        assert should_force_retrieval("我第一句问的是什么", content, has_context=True) is True
+
+
+def test_context_still_yields_to_user_instruction():
+    """规则 2 优先级最高：用户明说"根据知识库"，有历史也要查。"""
+    assert should_force_retrieval(
+        "根据知识库，谁住在广州？", "3", has_context=True) is True
+
+
+def test_context_need_tool_true_is_protocol_failure():
+    """说 need_tool: true 却没给 tool_call —— 协议失败，有历史也要兜底。"""
+    assert should_force_retrieval(
+        "我第一句问的是什么", '{"need_tool": true}', has_context=True) is True
+
+
+def test_context_explicit_false_still_respected():
+    """严格 JSON 的 false 本来就该放行，加不加 has_context 都一样。"""
+    for flag in (True, False):
+        assert should_force_retrieval("你好", '{"need_tool": false}', has_context=flag) is False
+
+
+@pytest.mark.parametrize(
+    "content,expect",
+    [
+        ("3", True),
+        ("编号是 1", True),
+        ("", False),
+        ("   ", False),
+        ("……", False),
+        (None, False),
+        (123, False),
+    ],
+)
+def test_has_substance(content, expect):
+    assert has_substance(content) is expect
+
+
+@pytest.mark.parametrize(
+    "content,expect",
+    [
+        ('{"need_tool": true}', True),
+        (' {"need_tool":true} ', True),
+        ('{"need_tool": false}', False),
+        ("", False),
+        (None, False),
+    ],
+)
+def test_declares_need_tool(content, expect):
+    assert declares_need_tool(content) is expect

@@ -31,7 +31,7 @@
 只能落到 1.2 让模型决策 —— 这是 38 题里唯一一道走这条路的题。
 所以修法不是加一个 try/except，而是把「用户已经明确要求查库」这件事也变成确定性逻辑。
 
-三条规则
+四条规则
 ───────
 1. **沉默必须兜底**：只有内容能解析成 `{"need_tool": false}` 才算模型说"不用查"。
    空内容、乱码、自然语言解释，一律当沉默 → 强制走一次检索。
@@ -40,9 +40,23 @@
    此时哪怕模型明确输出 need_tool=false 也要查。查了没有，才是 out_of_scope。
 3. **不认自然语言否定**：模型说"这不需要查询知识库"不算数，只认严格 JSON。
    宁可多跑一次检索，也不要把一句含糊的自然语言当成授权。
+4. **有对话上下文时，"抢答"不等于"沉默"**（2026-11-12 加）：
+   模型偶尔不输出决策、直接回答用户（实测 `content='3'`、`content='ok'`）。
+   以前这被归为沉默 → 强制检索 → 知识库里当然没有「我的编号」
+   → 检索落空 → 拒答，用户看到的是「无法从知识库中找到相关信息」，
+   而答案明明就在上一轮的对话历史里。
+
+   所以在**多轮会话**里，只要模型吐了有实质的自然语言，就当作"它想直接答"，
+   走「不检索 + 带记忆生成」，由生成阶段基于历史重新组织答案——
+   注意这里**不采纳**决策阶段那句抢答（它经常是错的，实测给的是 3 而不是 1），
+   只把"要不要检索"这个结论取过来。
+
+   单轮场景（评测的全部分例）`has_context=False`，行为与旧版逐字相同，
+   48 题基线不受影响。这是刻意留的边界：放宽只在"有历史可依据"时成立。
 
 第 3 条有代价（寒暄可能多花一次检索），所以兜底时会打 WARNING，
 观察一段时间再决定要不要放宽——放宽之前必须先有日志证明它真的常发生。
+第 4 条同理，只在 has_context 为真时生效，单轮仍按第 1 条从严。
 """
 
 import json
@@ -73,6 +87,11 @@ _PREFIX_RE = re.compile(r"^\s*(?:请)?(?:根据|按照|依据)[^，,：:。？?�
 
 _FENCE_RE = re.compile(r"^```[a-zA-Z]*\s*|\s*```$")
 _NEED_TOOL_FALSE_RE = re.compile(r'\{\s*"need_tool"\s*:\s*false\s*\}', re.IGNORECASE)
+# 说了 need_tool: true 却没带回 tool_call —— 那是协议失败，不是"想直接答"，
+# 有多轮上下文也必须兜底检索（否则用户明确要查库却被跳过）。
+_NEED_TOOL_TRUE_RE = re.compile(r'\{\s*"need_tool"\s*:\s*true\s*\}', re.IGNORECASE)
+# 有实质内容：至少一个字母/数字/汉字。"……"、"！！！"这种纯符号不算。
+_SUBSTANCE_RE = re.compile(r"[\w\u4e00-\u9fff]")
 
 
 def requires_retrieval(query: str) -> bool:
@@ -124,16 +143,52 @@ def explicit_no_tool(content) -> bool:
     return False
 
 
-def should_force_retrieval(query: str, content) -> bool:
+def has_substance(content) -> bool:
+    """内容里是否真有字（而不是空白、纯标点、纯省略号）。
+
+    用来区分「模型抢答了一句」和「模型什么都没说出来」。
+    注意它不判断内容对不对——抢答经常是错的，所以调用方只拿它当
+    "这次不是沉默"的信号，绝不要把 content 直接当成答案。
+    """
+    if not isinstance(content, str):
+        return False
+    return bool(_SUBSTANCE_RE.search(content))
+
+
+def declares_need_tool(content) -> bool:
+    """内容里是否出现了 `{"need_tool": true}`。
+
+    出现了却没带回 tool_call，说明模型在协议上失败了（说要查但没给调用），
+    这种情况一律按沉默处理，交给兜底去强制检索。
+    """
+    if not isinstance(content, str):
+        return False
+    return bool(_NEED_TOOL_TRUE_RE.search(content))
+
+
+def should_force_retrieval(query: str, content, has_context: bool = False) -> bool:
     """决策阶段没给出 tool_call 时，是否应该兜底强制检索。
 
-    返回 True 的三种情况：
+    返回 True 的情况：
       · 用户显式要求查库（规则 2，优先级最高，模型说什么都不算）
-      · 模型沉默（规则 1）
+      · 模型沉默：空内容 / 纯符号（规则 1）
       · 模型只说了自然语言，没有给出明确结论（规则 1 + 3）
+      · 模型说了 `need_tool: true` 却没给 tool_call（协议失败）
 
-    返回 False 只有一种：模型给了严格 `{"need_tool": false}`，且用户没要求查库。
+    返回 False 的情况：
+      · 模型给了严格 `{"need_tool": false}`，且用户没要求查库
+      · **且**（规则 4）会话有多轮上下文 + 模型吐了有实质的自然语言
+        → 它是在直接回答，不是沉默。放行到生成阶段，由历史兜住答案。
+
+    has_context 默认 False，所以所有单轮调用方（评测、冷启动首问）
+    的行为与旧版完全一致——放宽只在"有历史可依据"时成立。
     """
     if requires_retrieval(query):
         return True
-    return not explicit_no_tool(content)
+    if explicit_no_tool(content):
+        return False
+    if declares_need_tool(content):
+        return True
+    if has_context and has_substance(content):
+        return False
+    return True
