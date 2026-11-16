@@ -166,17 +166,67 @@ def declares_need_tool(content) -> bool:
     return bool(_NEED_TOOL_TRUE_RE.search(content))
 
 
-def should_force_retrieval(query: str, content, has_context: bool = False) -> bool:
+# 规则 5 的确定性信号。
+#
+# 只收**不可能出现在闲聊里**的形态：书名号里的法名、条号、以及多字法律术语。
+# **刻意不匹配裸的「法」字**：「这个方法」「我的想法」「没办法」都会被误伤，
+# 一旦误伤就是"闲聊也去查库 → 检索落空 → 答「未在知识库中找到相关信息」"，
+# 比漏判糟糕得多。宁可少兜底，也不要让寒暄变成拒答。
+_LAW_REF_RE = re.compile(r"《[^》]{2,40}》")
+_ARTICLE_REF_RE = re.compile(r"第[一二三四五六七八九十百千零〇0-9]+条")
+LEGAL_TERMS = (
+    "司法解释", "法律法规", "行政处罚", "行政许可", "行政复议",
+    "刑事责任", "民事责任", "违约责任", "诉讼时效", "仲裁",
+    "违约金", "劳动合同", "侵权", "著作权", "专利权", "商标权",
+    "抵押权", "质权", "继承", "遗嘱", "税率", "纳税人", "征税",
+    "罚款", "赔偿金", "判决书", "裁定书",
+)
+
+
+def looks_legal(query: str, law_names=()) -> bool:
+    """这句话是不是在问法条/法律问题（规则 5）。
+
+    为什么需要它：2026-11-13 实测「商业银行的经营原则是什么？」被 qwen 判成
+    `need_tool=false`，于是**不检索直接答**——模型凭参数化记忆编一段听起来
+    对的话，接口上是 `status=answered`、`sources=[]`，看不出任何异常。
+    对法律问答来说这是最危险的一种失败：答错且没有证据可查。
+
+    判据有意保守（见上面注释）。命中时调用方应无视模型的 false 结论，
+    强制检索一次——查了确实没有，才是 out_of_scope，那是有依据的拒答。
+
+    `law_names` 传库里真实存在的法名（去掉「中华人民共和国」前缀）时，
+    只要问句里出现其中之一也算命中——这是最可靠的信号：
+    「商业银行的经营原则」这句没有书名号、没有条号、也没有通用法律术语，
+    但它点名了库里那部《商业银行法》，靠关键词表永远抓不到。
+    """
+    q = (query or "").strip()
+    if not q:
+        return False
+    if _LAW_REF_RE.search(q) or _ARTICLE_REF_RE.search(q):
+        return True
+    if any(t in q for t in LEGAL_TERMS):
+        return True
+    for name in law_names or ():
+        n = str(name or "").strip()
+        # 短名（"宪法""刑法"是 2 字但极稳）只收 ≥2；更短的不可能有
+        if len(n) >= 2 and n in q:
+            return True
+    return False
+
+
+def should_force_retrieval(query: str, content, has_context: bool = False,
+                           law_names=()) -> bool:
     """决策阶段没给出 tool_call 时，是否应该兜底强制检索。
 
     返回 True 的情况：
       · 用户显式要求查库（规则 2，优先级最高，模型说什么都不算）
+      · 明显是法条/法律问题（规则 5，见 looks_legal）
       · 模型沉默：空内容 / 纯符号（规则 1）
       · 模型只说了自然语言，没有给出明确结论（规则 1 + 3）
       · 模型说了 `need_tool: true` 却没给 tool_call（协议失败）
 
     返回 False 的情况：
-      · 模型给了严格 `{"need_tool": false}`，且用户没要求查库
+      · 模型给了严格 `{"need_tool": false}`，且用户没要求查库、也不像法律问题
       · **且**（规则 4）会话有多轮上下文 + 模型吐了有实质的自然语言
         → 它是在直接回答，不是沉默。放行到生成阶段，由历史兜住答案。
 
@@ -184,6 +234,8 @@ def should_force_retrieval(query: str, content, has_context: bool = False) -> bo
     的行为与旧版完全一致——放宽只在"有历史可依据"时成立。
     """
     if requires_retrieval(query):
+        return True
+    if looks_legal(query, law_names):
         return True
     if explicit_no_tool(content):
         return False

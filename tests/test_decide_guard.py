@@ -20,6 +20,7 @@ from decide_guard import (
     declares_need_tool,
     explicit_no_tool,
     has_substance,
+    looks_legal,
     requires_retrieval,
     should_force_retrieval,
     strip_retrieval_prefix,
@@ -138,6 +139,69 @@ def test_regression_t038_third_round():
     q = "根据知识库，谁住在广州？"
     for content in ("", None, "   ", '{"need_tool": false}', "这个问题知识库里没有"):
         assert should_force_retrieval(q, content) is True, f"未兜住: {content!r}"
+
+
+# ----------------------------------------------------------------------
+# 3b. 规则 5：法律问题不受模型 need_tool=false 影响
+# ----------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "q",
+    [
+        "商业银行的经营原则是什么？",
+        "《民法典》第五百八十五条怎么规定的？",
+        "专利法第三十六条",
+        "劳动合同解除后经济补偿怎么算",
+        "印花税借款合同的税率是多少",
+        "违约金过高可以要求调整吗",
+        "著作权侵权赔偿标准",
+    ],
+)
+def test_legal_question_forces_retrieval_even_if_model_says_false(q):
+    """2026-11-13 实测：qwen 把「商业银行的经营原则」判成不用查，
+    于是不检索直接凭记忆答——`status=answered` 但 `sources=[]`，
+    接口上完全看不出异常。规则 5 把"这类问题必须查"变成确定性逻辑。"""
+    assert looks_legal(q, law_names=("商业银行", "民法典", "专利法")) is True
+    assert should_force_retrieval(q, '{"need_tool": false}',
+                                  law_names=("商业银行", "民法典", "专利法")) is True
+
+
+def test_law_name_from_index_makes_question_legal():
+    """最关键的一类：问句里没有书名号、没有条号、没有通用法律术语，
+    但它点名了库里那部法（「商业银行」←《商业银行法》）。
+    只有拿库里的真实法名去匹配才能抓到。"""
+    assert looks_legal("商业银行的经营原则是什么？") is False        # 无名单时抓不到
+    assert looks_legal("商业银行的经营原则是什么？", law_names=("商业银行",)) is True
+    # 反过来：名单里没有这个词，就不该被误判
+    assert looks_legal("怎么煮鸡蛋", law_names=("商业银行", "民法典")) is False
+
+
+@pytest.mark.parametrize(
+    "q",
+    [
+        "你好",
+        "谢谢，再见",
+        "这个方法可行吗",
+        "我有个想法，你听听看",
+        "没办法了",
+        "今天几号",
+        "帮我复述一下刚才的回答",
+    ],
+)
+def test_chitchat_is_not_treated_as_legal(q):
+    """**绝不能把裸的「法」字当信号**：方法/想法/没办法/说法都会误伤。
+    误伤的后果是寒暄也去查库 → 检索落空 → 用户看到「未在知识库中找到相关信息」。"""
+    assert looks_legal(q) is False
+    assert should_force_retrieval(q, '{"need_tool": false}') is False
+
+
+def test_legal_rule_does_not_break_multi_turn_answer_from_history():
+    """规则 4（多轮里模型直接作答）不能被规则 5 顺手收走：
+    闲聊只发生在非法律话题上；法律话题即使多轮也必须查库。"""
+    assert should_force_retrieval("你好", "3", has_context=True) is False
+    assert should_force_retrieval("民法典违约金规定", "3", has_context=True) is True
+
 
 
 # ----------------------------------------------------------------------
