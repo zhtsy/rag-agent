@@ -275,3 +275,32 @@ def test_chunk_stats_counts_tables():
     s = chunk_stats(chunk_docs(docs))
     assert s["tables"] == 1
     assert s["with_heading"] >= 1
+
+
+# ========== 字形编号乱码 ==========
+#
+# 《计量法》2018 版这类 PDF 用了缺 ToUnicode 映射的子集字体，pypdf 抽出来是
+# 「/G21 /G22 /G23」。它字数不少（3 页 1.1 万字），但一个字都不是正文。
+# 这种文本进库比空页更危险：空页会被标出来，乱码块却会安静地占满 top-5，
+# 而且 rerank 还会给它高分。
+
+def test_glyph_garbage_is_detected():
+    from ingest.loaders import looks_like_glyph_garbage
+
+    text = "/G21 /G22 /G23 /G24 /G25 /G26 /G27 （1985/G219/G226 /G23/G3A/G41"
+    assert looks_like_glyph_garbage(text)
+
+
+def test_normal_legal_text_is_not_garbage():
+    from ingest.loaders import looks_like_glyph_garbage
+
+    text = "第三十六条　发明专利的申请人请求实质审查的时候，应当提交在申请日前与其发明有关的参考资料。"
+    assert not looks_like_glyph_garbage(text)
+
+
+def test_text_with_few_glyph_tokens_not_flagged():
+    """正文里偶尔出现 /G12 这种写法，不能整页判成乱码。"""
+    from ingest.loaders import looks_like_glyph_garbage
+
+    text = "图号 /G12 表示该零件，具体见表 /G13。这一条讲的是专利申请的实质审查程序，共三款。"
+    assert not looks_like_glyph_garbage(text)

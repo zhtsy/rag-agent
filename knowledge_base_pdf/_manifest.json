@@ -1,0 +1,569 @@
+{
+ "中华人民共和国会计法_20240628_ff8081818d6a46390191686dca9952bf.pdf": {
+  "law": "中华人民共和国会计法",
+  "date": "20240628",
+  "size": 686715,
+  "tier": "text",
+  "overlap_md": true,
+  "sha256": "a33789b4d184363641bd2a3a6adee8e5e3e8ecc4c5f0df698bc4b304921e69b4",
+  "url": "https://raw.githubusercontent.com/lawtext/law-flk-vol1-pdf/main/pdf/法律/中华人民共和国会计法_20240628_ff8081818d6a46390191686dca9952bf.pdf"
+ },
+ "中华人民共和国劳动合同法_20121228_2c909fdd678bf17901678bf74d7106b3.pdf": {
+  "law": "中华人民共和国劳动合同法",
+  "date": "20121228",
+  "size": 6309824,
+  "tier": "scan",
+  "overlap_md": true,
+  "sha256": "fde9ff34f62add4d61cf7ec34a7f37e34813639933f5c94ef6099eed9011ff04",
+  "url": "https://raw.githubusercontent.com/lawtext/law-flk-vol1-pdf/main/pdf/法律/中华人民共和国劳动合同法_20121228_2c909fdd678bf17901678bf74d7106b3.pdf"
+ },
+ "中华人民共和国个人独资企业法_19990830_2c909fdd678bf17901678bf609680235.pdf": {
+  "law": "中华人民共和国个人独资企业法",
+  "date": "19990830",
+  "size": 2365397,
+  "tier": "mixed",
+  "overlap_md": true,
+  "sha256": "35268e346394b1987391f212da7049b76ac430992cf6314464a5025967ba4ae2",
+  "url": "https://raw.githubusercontent.com/lawtext/law-flk-vol1-pdf/main/pdf/法律/中华人民共和国个人独资企业法_19990830_2c909fdd678bf17901678bf609680235.pdf"
+ },
+ "中华人民共和国反垄断法_20220624_ff8081818234ccb501829f46c6ac2a5a.pdf": {
+  "law": "中华人民共和国反垄断法",
+  "date": "20220624",
+  "size": 704648,
+  "tier": "text",
+  "overlap_md": true,
+  "sha256": "b6644764ad8be6096e660854a7d85cbef4c9b67560522d173a8b2d90389b7854",
+  "url": "https://raw.githubusercontent.com/lawtext/law-flk-vol1-pdf/main/pdf/法律/中华人民共和国反垄断法_20220624_ff8081818234ccb501829f46c6ac2a5a.pdf"
+ },
+ "中华人民共和国行政诉讼法_20170627_2c909fdd678bf17901678bf858550a0f.pdf": {
+  "law": "中华人民共和国行政诉讼法",
+  "date": "20170627",
+  "size": 6795569,
+  "tier": "scan",
+  "overlap_md": true,
+  "sha256": "4880054645cbda5204a231429605cb494a03c64d512b585f977bf9c9e4c04177",
+  "url": "https://raw.githubusercontent.com/lawtext/law-flk-vol1-pdf/main/pdf/法律/中华人民共和国行政诉讼法_20170627_2c909fdd678bf17901678bf858550a0f.pdf"
+ },
+ "中华人民共和国个人所得税法_20180831_2c909fdd678bf17901678bf724bd0609.pdf": {
+  "law": "中华人民共和国个人所得税法",
+  "date": "20180831",
+  "size": 2515190,
+  "tier": "mixed",
+  "overlap_md": true,
+  "sha256": "89971b0c6afeb0501195750f8a922a3a9e9928306689e32e925499b212aee47d",
+  "url": "https://raw.githubusercontent.com/lawtext/law-flk-vol1-pdf/main/pdf/法律/中华人民共和国个人所得税法_20180831_2c909fdd678bf17901678bf724bd0609.pdf"
+ },
+ "中华人民共和国商标法_20190423_ff8080816f135f46016f217645451b35.pdf": {
+  "law": "中华人民共和国商标法",
+  "date": "20190423",
+  "size": 739741,
+  "tier": "text",
+  "overlap_md": true,
+  "sha256": "44f73d24d518a51a8297a4c453fd241cb9df111fa07768ad9de4fcc7164d9116",
+  "url": "https://raw.githubusercontent.com/lawtext/law-flk-vol1-pdf/main/pdf/法律/中华人民共和国商标法_20190423_ff8080816f135f46016f217645451b35.pdf"
+ },
+ "中华人民共和国合伙企业法_20060827_2c909fdd678bf17901678bf63dce034d.pdf": {
+  "law": "中华人民共和国合伙企业法",
+  "date": "20060827",
+  "size": 7174021,
+  "tier": "scan",
+  "overlap_md": true,
+  "sha256": "0b4f0c934924fa451167c3ed54801016c56e11e3a5c3166de5e03990702e7876",
+  "url": "https://raw.githubusercontent.com/lawtext/law-flk-vol1-pdf/main/pdf/法律/中华人民共和国合伙企业法_20060827_2c909fdd678bf17901678bf63dce034d.pdf"
+ },
+ "中华人民共和国刑事诉讼法_20181026_ff8080816f135f46016f1d1b81b01351.pdf": {
+  "law": "中华人民共和国刑事诉讼法",
+  "date": "20181026",
+  "size": 2966774,
+  "tier": "mixed",
+  "overlap_md": true,
+  "sha256": "469c36413a044a8d96cb4808757374d21f4f7ea05fc5def712978725c0ffadd9",
+  "url": "https://raw.githubusercontent.com/lawtext/law-flk-vol1-pdf/main/pdf/法律/中华人民共和国刑事诉讼法_20181026_ff8080816f135f46016f1d1b81b01351.pdf"
+ },
+ "中华人民共和国安全生产法_20210610_ff8081817a66b816017a7956b7db0ad4.pdf": {
+  "law": "中华人民共和国安全生产法",
+  "date": "20210610",
+  "size": 774833,
+  "tier": "text",
+  "overlap_md": true,
+  "sha256": "39c30762815779014962035d4c9868acfcb3f689125882f3cb65155a96901375",
+  "url": "https://raw.githubusercontent.com/lawtext/law-flk-vol1-pdf/main/pdf/法律/中华人民共和国安全生产法_20210610_ff8081817a66b816017a7956b7db0ad4.pdf"
+ },
+ "中华人民共和国税收征收管理法_20150424_2c909fdd678bf17901678bf78cff0785.pdf": {
+  "law": "中华人民共和国税收征收管理法",
+  "date": "20150424",
+  "size": 7530572,
+  "tier": "scan",
+  "overlap_md": true,
+  "sha256": "c3a4327c95f5a5fc56c0ddf4fedd4d36ba53a38d858a862e67b899d58c8e7739",
+  "url": "https://raw.githubusercontent.com/lawtext/law-flk-vol1-pdf/main/pdf/法律/中华人民共和国税收征收管理法_20150424_2c909fdd678bf17901678bf78cff0785.pdf"
+ },
+ "中华人民共和国劳动争议调解仲裁法_20071229_2c909fdd678bf17901678bf64f28039d.pdf": {
+  "law": "中华人民共和国劳动争议调解仲裁法",
+  "date": "20071229",
+  "size": 4115485,
+  "tier": "mixed",
+  "overlap_md": true,
+  "sha256": "6a0987a3f4835192939cb55b16afd047ee674dd3d54b235bd3626cf796bc3251",
+  "url": "https://raw.githubusercontent.com/lawtext/law-flk-vol1-pdf/main/pdf/法律/中华人民共和国劳动争议调解仲裁法_20071229_2c909fdd678bf17901678bf64f28039d.pdf"
+ },
+ "中华人民共和国反不正当竞争法_20250627_ff808181971552b40197b1016efc5437.pdf": {
+  "law": "中华人民共和国反不正当竞争法",
+  "date": "20250627",
+  "size": 786447,
+  "tier": "text",
+  "overlap_md": true,
+  "sha256": "4fc51934d68396cbee8fb8afafae42b56f1f06e93b1fd66114413507d65936c2",
+  "url": "https://raw.githubusercontent.com/lawtext/law-flk-vol1-pdf/main/pdf/法律/中华人民共和国反不正当竞争法_20250627_ff808181971552b40197b1016efc5437.pdf"
+ },
+ "中华人民共和国企业破产法_20060827_2c909fdd678bf17901678bf63c7c0343.pdf": {
+  "law": "中华人民共和国企业破产法",
+  "date": "20060827",
+  "size": 10713942,
+  "tier": "scan",
+  "overlap_md": true,
+  "sha256": "4b5114da9643adc7a3ed387204bee20b51895fe7a11406bfe936eb17c1aa1983",
+  "url": "https://raw.githubusercontent.com/lawtext/law-flk-vol1-pdf/main/pdf/法律/中华人民共和国企业破产法_20060827_2c909fdd678bf17901678bf63c7c0343.pdf"
+ },
+ "中华人民共和国环境保护法_20140424_2c909fdd678bf17901678bf76c1d0717.pdf": {
+  "law": "中华人民共和国环境保护法",
+  "date": "20140424",
+  "size": 4336406,
+  "tier": "mixed",
+  "overlap_md": true,
+  "sha256": "fbbea29d1029f37ba48e36aa58f175e7836603ffae930fb8f36cd85527b1e977",
+  "url": "https://raw.githubusercontent.com/lawtext/law-flk-vol1-pdf/main/pdf/法律/中华人民共和国环境保护法_20140424_2c909fdd678bf17901678bf76c1d0717.pdf"
+ },
+ "中华人民共和国工会法_20211224_ff8081817f072a2e017f0ae1a7f600f0.pdf": {
+  "law": "中华人民共和国工会法",
+  "date": "20211224",
+  "size": 793508,
+  "tier": "text",
+  "overlap_md": true,
+  "sha256": "17622c4821c08328e2f97604fcc2b883d0614706f1e8c0902d3077c5f09ea2b7",
+  "url": "https://raw.githubusercontent.com/lawtext/law-flk-vol1-pdf/main/pdf/法律/中华人民共和国工会法_20211224_ff8081817f072a2e017f0ae1a7f600f0.pdf"
+ },
+ "中华人民共和国刑法_20201226_ff808181796a636a0179822a19640c92.pdf": {
+  "law": "中华人民共和国刑法",
+  "date": "20201226",
+  "size": 19937723,
+  "tier": "scan",
+  "overlap_md": true,
+  "sha256": "2252a75f5549dbd9f902f74c9b9943adfde33729f600c62f3e8c24ea204a5456",
+  "url": "https://raw.githubusercontent.com/lawtext/law-flk-vol1-pdf/main/pdf/法律/中华人民共和国刑法_20201226_ff808181796a636a0179822a19640c92.pdf"
+ },
+ "中华人民共和国行政强制法_20110630_2c909fdd678bf17901678bf72f7a0613.pdf": {
+  "law": "中华人民共和国行政强制法",
+  "date": "20110630",
+  "size": 4339808,
+  "tier": "mixed",
+  "overlap_md": true,
+  "sha256": "26245b774b19444cf21da96638becc95b8ae214bac0efd2a4ac5e8a1faf69b96",
+  "url": "https://raw.githubusercontent.com/lawtext/law-flk-vol1-pdf/main/pdf/法律/中华人民共和国行政强制法_20110630_2c909fdd678bf17901678bf72f7a0613.pdf"
+ },
+ "中华人民共和国行政复议法_20230901_ff8081818a21e6c3018a508d491a0c98.pdf": {
+  "law": "中华人民共和国行政复议法",
+  "date": "20230901",
+  "size": 809234,
+  "tier": "text",
+  "overlap_md": true,
+  "sha256": "01f6d76afd9ed738e561eb0b5e3e4cced9e38dbba9da1065f7264e0bd259337a",
+  "url": "https://raw.githubusercontent.com/lawtext/law-flk-vol1-pdf/main/pdf/法律/中华人民共和国行政复议法_20230901_ff8081818a21e6c3018a508d491a0c98.pdf"
+ },
+ "中华人民共和国招标投标法_20171227_2c909fdd678bf17901678bf88f170b31.pdf": {
+  "law": "中华人民共和国招标投标法",
+  "date": "20171227",
+  "size": 4519663,
+  "tier": "mixed",
+  "overlap_md": true,
+  "sha256": "889597b4a14a657ff1768c23cfd374bab34c8662d2a47a38f09dcf5dcb0834a2",
+  "url": "https://raw.githubusercontent.com/lawtext/law-flk-vol1-pdf/main/pdf/法律/中华人民共和国招标投标法_20171227_2c909fdd678bf17901678bf88f170b31.pdf"
+ },
+ "中华人民共和国审计法_20211023_ff8081817d99a43a017dbd2663521c3f.pdf": {
+  "law": "中华人民共和国审计法",
+  "date": "20211023",
+  "size": 824082,
+  "tier": "text",
+  "overlap_md": true,
+  "sha256": "9c82bd6604b347196477ceff9779bd990f743859dd420ba8628d3a24c5a95ae9",
+  "url": "https://raw.githubusercontent.com/lawtext/law-flk-vol1-pdf/main/pdf/法律/中华人民共和国审计法_20211023_ff8081817d99a43a017dbd2663521c3f.pdf"
+ },
+ "中华人民共和国消费者权益保护法_20131025_2c909fdd678bf17901678bf7670606ef.pdf": {
+  "law": "中华人民共和国消费者权益保护法",
+  "date": "20131025",
+  "size": 4893253,
+  "tier": "mixed",
+  "overlap_md": true,
+  "sha256": "cd0e64429999765cef8123d6000904ba16f53f5ea2bc254a74adc015f560d047",
+  "url": "https://raw.githubusercontent.com/lawtext/law-flk-vol1-pdf/main/pdf/法律/中华人民共和国消费者权益保护法_20131025_2c909fdd678bf17901678bf7670606ef.pdf"
+ },
+ "中华人民共和国环境影响评价法_20181229_ff8080816f135f46016f20e89eff170a.pdf": {
+  "law": "中华人民共和国环境影响评价法",
+  "date": "20181229",
+  "size": 848771,
+  "tier": "text",
+  "overlap_md": true,
+  "sha256": "3cb1762961d458956b2fd5c723d266276ef004f23f6fd18df91f110712032a00",
+  "url": "https://raw.githubusercontent.com/lawtext/law-flk-vol1-pdf/main/pdf/法律/中华人民共和国环境影响评价法_20181229_ff8080816f135f46016f20e89eff170a.pdf"
+ },
+ "中华人民共和国政府采购法_20140831_2c909fdd678bf17901678bf77e170753.pdf": {
+  "law": "中华人民共和国政府采购法",
+  "date": "20140831",
+  "size": 4986728,
+  "tier": "mixed",
+  "overlap_md": true,
+  "sha256": "8867d19c71af57f4007f90794253fa4bc2933e1ed6da99dbaba06b5968add966",
+  "url": "https://raw.githubusercontent.com/lawtext/law-flk-vol1-pdf/main/pdf/法律/中华人民共和国政府采购法_20140831_2c909fdd678bf17901678bf77e170753.pdf"
+ },
+ "中华人民共和国企业所得税法_20181229_ff8080816f135f46016f2106acd11784.pdf": {
+  "law": "中华人民共和国企业所得税法",
+  "date": "20181229",
+  "size": 849935,
+  "tier": "text",
+  "overlap_md": true,
+  "sha256": "1ff3b491a373711cef97caea4c78dd5bdea3f0fce7effb7fa86198ffa707ac6f",
+  "url": "https://raw.githubusercontent.com/lawtext/law-flk-vol1-pdf/main/pdf/法律/中华人民共和国企业所得税法_20181229_ff8080816f135f46016f2106acd11784.pdf"
+ },
+ "中华人民共和国电子商务法_20180831_2c909fdd678bf17901678bf8af050b81.pdf": {
+  "law": "中华人民共和国电子商务法",
+  "date": "20180831",
+  "size": 5273006,
+  "tier": "mixed",
+  "overlap_md": true,
+  "sha256": "c20832af8204a07c8125b5abe8a4993c3e8f06ab77e43e6898f7033375abbbde",
+  "url": "https://raw.githubusercontent.com/lawtext/law-flk-vol1-pdf/main/pdf/法律/中华人民共和国电子商务法_20180831_2c909fdd678bf17901678bf8af050b81.pdf"
+ },
+ "中华人民共和国专利法_20201017_ff808081752b7d430175e4651cbd1547.pdf": {
+  "law": "中华人民共和国专利法",
+  "date": "20201017",
+  "size": 851218,
+  "tier": "text",
+  "overlap_md": true,
+  "sha256": "2fa21c99bf00f3f4e4b9fad25d36654e5084be0c9a7dbe35c9c4128845f6abfc",
+  "url": "https://raw.githubusercontent.com/lawtext/law-flk-vol1-pdf/main/pdf/法律/中华人民共和国专利法_20201017_ff808081752b7d430175e4651cbd1547.pdf"
+ },
+ "中华人民共和国行政许可法_20190423_ff8080816f135f46016f216bf96b1ae6.pdf": {
+  "law": "中华人民共和国行政许可法",
+  "date": "20190423",
+  "size": 851323,
+  "tier": "text",
+  "overlap_md": true,
+  "sha256": "b47e1577b9d54559e0e53da7172dc1e14277d61ceeb41bfe83a04d5607758967",
+  "url": "https://raw.githubusercontent.com/lawtext/law-flk-vol1-pdf/main/pdf/法律/中华人民共和国行政许可法_20190423_ff8080816f135f46016f216bf96b1ae6.pdf"
+ },
+ "中华人民共和国行政处罚法_20210122_ff8080817703add20177373df6a43e33.pdf": {
+  "law": "中华人民共和国行政处罚法",
+  "date": "20210122",
+  "size": 854588,
+  "tier": "text",
+  "overlap_md": true,
+  "sha256": "f751b15da816b032ebd9546b03482e0b5355cdc3dee5cceb572626390fd09549",
+  "url": "https://raw.githubusercontent.com/lawtext/law-flk-vol1-pdf/main/pdf/法律/中华人民共和国行政处罚法_20210122_ff8080817703add20177373df6a43e33.pdf"
+ },
+ "中华人民共和国数据安全法_20210610_ff80818179f5e0800179f885c7e70392.pdf": {
+  "law": "中华人民共和国数据安全法",
+  "date": "20210610",
+  "size": 860148,
+  "tier": "text",
+  "overlap_md": true,
+  "sha256": "865621df5cff041a539c96187ec1a11428b7f9ab732b47ccb64e58dbde8a2e7b",
+  "url": "https://raw.githubusercontent.com/lawtext/law-flk-vol1-pdf/main/pdf/法律/中华人民共和国数据安全法_20210610_ff80818179f5e0800179f885c7e70392.pdf"
+ },
+ "中华人民共和国计量法_20181026_ff8080816f135f46016f1cf499ff11eb.pdf": {
+  "law": "中华人民共和国计量法",
+  "date": "20181026",
+  "size": 245752,
+  "tier": "text",
+  "overlap_md": false,
+  "sha256": "25710961f040e8d31f218f9b43bddd67473b89a85ddf35e2f351bfb88af52d2a",
+  "url": "https://raw.githubusercontent.com/lawtext/law-flk-vol1-pdf/main/pdf/法律/中华人民共和国计量法_20181026_ff8080816f135f46016f1cf499ff11eb.pdf"
+ },
+ "中华人民共和国商业银行法_20150829_2c909fdd678bf17901678bf7eba9086b.pdf": {
+  "law": "中华人民共和国商业银行法",
+  "date": "20150829",
+  "size": 6953783,
+  "tier": "scan",
+  "overlap_md": false,
+  "sha256": "4e8963d7c64ba94ff68c229995b4514d409d525e82baf586de01ba494795cf6e",
+  "url": "https://raw.githubusercontent.com/lawtext/law-flk-vol1-pdf/main/pdf/法律/中华人民共和国商业银行法_20150829_2c909fdd678bf17901678bf7eba9086b.pdf"
+ },
+ "中华人民共和国深海海底区域资源勘探开发法_20160226_2c909fdd678bf17901678bf8021508bb.pdf": {
+  "law": "中华人民共和国深海海底区域资源勘探开发法",
+  "date": "20160226",
+  "size": 2160517,
+  "tier": "mixed",
+  "overlap_md": false,
+  "sha256": "036d1e813e2fb8897f2da0d7fcbe46d6f70785228c696942371d681c8befeec6",
+  "url": "https://raw.githubusercontent.com/lawtext/law-flk-vol1-pdf/main/pdf/法律/中华人民共和国深海海底区域资源勘探开发法_20160226_2c909fdd678bf17901678bf8021508bb.pdf"
+ },
+ "中华人民共和国船舶吨税法_20181026_ff8080816f135f46016f1d0fc5761317.pdf": {
+  "law": "中华人民共和国船舶吨税法",
+  "date": "20181026",
+  "size": 270812,
+  "tier": "text",
+  "overlap_md": false,
+  "sha256": "e7adca31e2fc935b6dd3354b42adf7e1524ff6b88bd140bd15114bf49869134c",
+  "url": "https://raw.githubusercontent.com/lawtext/law-flk-vol1-pdf/main/pdf/法律/中华人民共和国船舶吨税法_20181026_ff8080816f135f46016f1d0fc5761317.pdf"
+ },
+ "中华人民共和国邮政法_20150424_2c909fdd678bf17901678bf7bb6307f3.pdf": {
+  "law": "中华人民共和国邮政法",
+  "date": "20150424",
+  "size": 7062355,
+  "tier": "scan",
+  "overlap_md": false,
+  "sha256": "2e83361a7e12bf949a74f8bc14cdc87a42f1a09a2bb1cee0eb85e9ed8c6b04ac",
+  "url": "https://raw.githubusercontent.com/lawtext/law-flk-vol1-pdf/main/pdf/法律/中华人民共和国邮政法_20150424_2c909fdd678bf17901678bf7bb6307f3.pdf"
+ },
+ "中华人民共和国集会游行示威法_20090827_2c909fdd678bf17901678bf6a98a04dd.pdf": {
+  "law": "中华人民共和国集会游行示威法",
+  "date": "20090827",
+  "size": 2193084,
+  "tier": "mixed",
+  "overlap_md": false,
+  "sha256": "7263fe1a35ae2eadbbea571889ffee994e98b884390cee951b32f95865ab9a75",
+  "url": "https://raw.githubusercontent.com/lawtext/law-flk-vol1-pdf/main/pdf/法律/中华人民共和国集会游行示威法_20090827_2c909fdd678bf17901678bf6a98a04dd.pdf"
+ },
+ "中华人民共和国烟叶税法_20171227_2c909fdd678bf17901678bf88e4e0b1d.pdf": {
+  "law": "中华人民共和国烟叶税法",
+  "date": "20171227",
+  "size": 359104,
+  "tier": "text",
+  "overlap_md": false,
+  "sha256": "4f0fd9017fc260b72d130bf8be6f7ca364b61862834fb945b6bb4badb2b8ce8c",
+  "url": "https://raw.githubusercontent.com/lawtext/law-flk-vol1-pdf/main/pdf/法律/中华人民共和国烟叶税法_20171227_2c909fdd678bf17901678bf88e4e0b1d.pdf"
+ },
+ "中华人民共和国国旗法_20201017_ff80808175265dd40175e4c1504b0f2e.pdf": {
+  "law": "中华人民共和国国旗法",
+  "date": "20201017",
+  "size": 7141491,
+  "tier": "scan",
+  "overlap_md": false,
+  "sha256": "a8e48c88d09c5f06076a950eb1db16e9c8d5d1aa03010f91c7858f42509a8bf5",
+  "url": "https://raw.githubusercontent.com/lawtext/law-flk-vol1-pdf/main/pdf/法律/中华人民共和国国旗法_20201017_ff80808175265dd40175e4c1504b0f2e.pdf"
+ },
+ "中华人民共和国公益事业捐赠法_19990628_2c909fdd678bf17901678bf608a7022b.pdf": {
+  "law": "中华人民共和国公益事业捐赠法",
+  "date": "19990628",
+  "size": 2231739,
+  "tier": "mixed",
+  "overlap_md": false,
+  "sha256": "229b77e9688bf43900b0cd63c6a52ac84a87ece2cc1acfed961ebf9a147162fb",
+  "url": "https://raw.githubusercontent.com/lawtext/law-flk-vol1-pdf/main/pdf/法律/中华人民共和国公益事业捐赠法_19990628_2c909fdd678bf17901678bf608a7022b.pdf"
+ },
+ "中华人民共和国人民法院组织法_20181026_ff8080816f135f46016f1c5dbc0f106d.pdf": {
+  "law": "中华人民共和国人民法院组织法",
+  "date": "20181026",
+  "size": 372396,
+  "tier": "text",
+  "overlap_md": false,
+  "sha256": "4572ce5e08668184f667cad48a85ea02562b8c74065d34fc284ad476aa8e4a52",
+  "url": "https://raw.githubusercontent.com/lawtext/law-flk-vol1-pdf/main/pdf/法律/中华人民共和国人民法院组织法_20181026_ff8080816f135f46016f1c5dbc0f106d.pdf"
+ },
+ "中华人民共和国资源税法_20190826_ff8080816f3cbb3c016f4635be1b2873.pdf": {
+  "law": "中华人民共和国资源税法",
+  "date": "20190826",
+  "size": 817725,
+  "tier": "text",
+  "kind": "table",
+  "overlap_md": false,
+  "sha256": "55d816a67335b3958e386f0a7ff8ca36f1c3d4c710060c3dab5a08d58b7ab1b2",
+  "url": "https://raw.githubusercontent.com/lawtext/law-flk-vol1-pdf/main/pdf/法律/中华人民共和国资源税法_20190826_ff8080816f3cbb3c016f4635be1b2873.pdf",
+  "probe": {
+   "table_pages": [],
+   "pages": 5,
+   "empty_pages": 0
+  }
+ },
+ "中华人民共和国车船税法_20190423_ff8080816f135f46016f215dc4071a64.pdf": {
+  "law": "中华人民共和国车船税法",
+  "date": "20190423",
+  "size": 693952,
+  "tier": "text",
+  "kind": "table",
+  "overlap_md": false,
+  "sha256": "24b2dc9244c5d2c54d15bccec61752910a97ea7c8df5ddd56b517839cce13cc7",
+  "url": "https://raw.githubusercontent.com/lawtext/law-flk-vol1-pdf/main/pdf/法律/中华人民共和国车船税法_20190423_ff8080816f135f46016f215dc4071a64.pdf",
+  "probe": {
+   "table_pages": [
+    {
+     "page": 2,
+     "digit_density": 0.164,
+     "short_ratio": 0.962
+    }
+   ],
+   "pages": 2,
+   "empty_pages": 0
+  }
+ },
+ "中华人民共和国耕地占用税法_20181229_ff8080816f135f46016f213156b61815.pdf": {
+  "law": "中华人民共和国耕地占用税法",
+  "date": "20181229",
+  "size": 1014890,
+  "tier": "text",
+  "kind": "table",
+  "overlap_md": false,
+  "sha256": "4d2aa5a56e905a238ec3bb6559945b7d6f84f5342b3bda82760ffc5d09a1087a",
+  "url": "https://raw.githubusercontent.com/lawtext/law-flk-vol1-pdf/main/pdf/法律/中华人民共和国耕地占用税法_20181229_ff8080816f135f46016f213156b61815.pdf",
+  "probe": {
+   "table_pages": [],
+   "pages": 3,
+   "empty_pages": 0
+  }
+ },
+ "中华人民共和国印花税法_20210610_ff80818179f5da5e0179f890885b0481.pdf": {
+  "law": "中华人民共和国印花税法",
+  "date": "20210610",
+  "size": 846432,
+  "tier": "text",
+  "kind": "table",
+  "overlap_md": false,
+  "sha256": "3c1928f6a7ef66ed379708db2933c3f12035a8620563e3099450d2f170563ab9",
+  "url": "https://raw.githubusercontent.com/lawtext/law-flk-vol1-pdf/main/pdf/法律/中华人民共和国印花税法_20210610_ff80818179f5da5e0179f890885b0481.pdf",
+  "probe": {
+   "table_pages": [],
+   "pages": 4,
+   "empty_pages": 0
+  }
+ },
+ "中华人民共和国契税法_20200811_ff808081736ba7420173e71ef7563753.pdf": {
+  "law": "中华人民共和国契税法",
+  "date": "20200811",
+  "size": 835807,
+  "tier": "text",
+  "kind": "table",
+  "overlap_md": false,
+  "sha256": "e03e3f285b7d1f5074bd49595b8dbea1685756ac8b71361464f218a54df0e3e9",
+  "url": "https://raw.githubusercontent.com/lawtext/law-flk-vol1-pdf/main/pdf/法律/中华人民共和国契税法_20200811_ff808081736ba7420173e71ef7563753.pdf",
+  "probe": {
+   "table_pages": [],
+   "pages": 3,
+   "empty_pages": 0
+  }
+ },
+ "中华人民共和国环境保护税法_20251028_6bae366fd9f94fbf9450c48a68bfc68a.pdf": {
+  "law": "中华人民共和国环境保护税法",
+  "date": "20251028",
+  "size": 1009854,
+  "tier": "text",
+  "kind": "table",
+  "overlap_md": false,
+  "sha256": "6d1af487712f564b70cf2700d7adbce42f840d638fcea4893d841c3d763c1740",
+  "url": "https://raw.githubusercontent.com/lawtext/law-flk-vol1-pdf/main/pdf/法律/中华人民共和国环境保护税法_20251028_6bae366fd9f94fbf9450c48a68bfc68a.pdf",
+  "probe": {
+   "table_pages": [
+    {
+     "page": 5,
+     "digit_density": 0.128,
+     "short_ratio": 0.654
+    },
+    {
+     "page": 6,
+     "digit_density": 0.246,
+     "short_ratio": 0.5
+    },
+    {
+     "page": 9,
+     "digit_density": 0.243,
+     "short_ratio": 0.656
+    },
+    {
+     "page": 10,
+     "digit_density": 0.361,
+     "short_ratio": 0.778
+    }
+   ],
+   "pages": 11,
+   "empty_pages": 0
+  }
+ },
+ "中华人民共和国车辆购置税法_20181229_ff8080816f135f46016f2147561d18ed.pdf": {
+  "law": "中华人民共和国车辆购置税法",
+  "date": "20181229",
+  "size": 1017944,
+  "tier": "text",
+  "kind": "table",
+  "overlap_md": false,
+  "sha256": "06aebe61a1118840891f869d9e470210c7fb650351b1dffc30723ac96984d814",
+  "url": "https://raw.githubusercontent.com/lawtext/law-flk-vol1-pdf/main/pdf/法律/中华人民共和国车辆购置税法_20181229_ff8080816f135f46016f2147561d18ed.pdf",
+  "probe": {
+   "table_pages": [],
+   "pages": 2,
+   "empty_pages": 0
+  }
+ },
+ "中华人民共和国城市维护建设税法_20200811_ff808081736ba7420173e715adbf36ff.pdf": {
+  "law": "中华人民共和国城市维护建设税法",
+  "date": "20200811",
+  "size": 830963,
+  "tier": "text",
+  "kind": "table",
+  "overlap_md": false,
+  "sha256": "3338e357ca19eb7b66d048df179587db934598ded59779d80c743e3b9bf308de",
+  "url": "https://raw.githubusercontent.com/lawtext/law-flk-vol1-pdf/main/pdf/法律/中华人民共和国城市维护建设税法_20200811_ff808081736ba7420173e715adbf36ff.pdf",
+  "probe": {
+   "table_pages": [],
+   "pages": 2,
+   "empty_pages": 0
+  }
+ },
+ "中华人民共和国土地增值税暂行条例_20110108_ff8080816f3cbb3c016f411bd9e317a0.pdf": {
+  "law": "中华人民共和国土地增值税暂行条例",
+  "date": "20110108",
+  "size": 1436971,
+  "tier": "text",
+  "kind": "table",
+  "overlap_md": false,
+  "sha256": "21bd71ebd0f9f869397ba6622a3e58d5929347f6b3503c11edee2a4ebf279098",
+  "url": "https://raw.githubusercontent.com/lawtext/law-flk-vol1-pdf/main/pdf/行政法规/中华人民共和国土地增值税暂行条例_20110108_ff8080816f3cbb3c016f411bd9e317a0.pdf",
+  "probe": {
+   "table_pages": [],
+   "pages": 2,
+   "empty_pages": 2
+  }
+ },
+ "仲裁委员会仲裁收费办法_19950728_ff8080816f3cbb3c016f4145fce81fa4.pdf": {
+  "law": "仲裁委员会仲裁收费办法",
+  "date": "19950728",
+  "size": 2551644,
+  "tier": "mixed",
+  "kind": "table",
+  "overlap_md": false,
+  "sha256": "4afd871e142e21fb4e76cb2492f5f3a67e03699ad1b8a49ca90d5c11a31c9ebf",
+  "url": "https://raw.githubusercontent.com/lawtext/law-flk-vol1-pdf/main/pdf/行政法规/仲裁委员会仲裁收费办法_19950728_ff8080816f3cbb3c016f4145fce81fa4.pdf",
+  "probe": {
+   "table_pages": [],
+   "pages": 3,
+   "empty_pages": 3
+  }
+ },
+ "诉讼费用交纳办法_20061219_ff8080816f3e98bd016f41e1395a015f.pdf": {
+  "law": "诉讼费用交纳办法",
+  "date": "20061219",
+  "size": 6315151,
+  "tier": "scan",
+  "kind": "table",
+  "overlap_md": false,
+  "sha256": "c898c0ccca8c28bfc717c08199ecf466ac3601b5da087aea4a4fd11f73963e5d",
+  "url": "https://raw.githubusercontent.com/lawtext/law-flk-vol1-pdf/main/pdf/行政法规/诉讼费用交纳办法_20061219_ff8080816f3e98bd016f41e1395a015f.pdf",
+  "probe": {
+   "table_pages": [],
+   "pages": 6,
+   "empty_pages": 6
+  }
+ },
+ "中华人民共和国港口间海上旅客运输赔偿责任限额规定_19931217_ff8080816f3cbb3c016f411d1c9617fc.pdf": {
+  "law": "中华人民共和国港口间海上旅客运输赔偿责任限额规定",
+  "date": "19931217",
+  "size": 529365,
+  "tier": "text",
+  "kind": "table",
+  "overlap_md": false,
+  "sha256": "50664016b779c9b131c1db9b18e6208e4782be4e9811b7af7a9601f8382e72de",
+  "url": "https://raw.githubusercontent.com/lawtext/law-flk-vol1-pdf/main/pdf/行政法规/中华人民共和国港口间海上旅客运输赔偿责任限额规定_19931217_ff8080816f3cbb3c016f411d1c9617fc.pdf",
+  "probe": {
+   "table_pages": [],
+   "pages": 2,
+   "empty_pages": 2
+  }
+ }
+}

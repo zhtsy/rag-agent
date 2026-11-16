@@ -60,12 +60,22 @@ def _blocks(text: str) -> List[Tuple[str, int, str]]:
             i += 1
             continue
         if line.strip().startswith("|"):
+            # 表格正上方紧挨着的短行 = 表名（"车 船 税 税 目 税 额 表"）。
+            # 必须并进表格块：分开成 8 个字的独立段落，既会被 rerank 当噪声，
+            # 又让"车船税税目税额表"这个词在表块里一次都不出现，问「税目税额表」
+            # 检索不到。只认"缓冲区最后一行且不超过 30 字"，避免把正文末句
+            # 误当表名；它前面若还有「附：」之类，照常刷成一个短段落。
+            caption = ""
+            if buf and len(buf[-1].strip()) <= 30:
+                caption = buf[-1].strip()
+                buf.pop()
             flush()
             rows = []
             while i < len(lines) and lines[i].strip().startswith("|"):
                 rows.append(lines[i].rstrip())
                 i += 1
-            blocks.append(("table", 0, "\n".join(rows)))
+            body = "\n".join(rows)
+            blocks.append(("table", 0, f"{caption}\n{body}" if caption else body))
             continue
         if not line.strip():
             flush()
@@ -78,9 +88,27 @@ def _blocks(text: str) -> List[Tuple[str, int, str]]:
 
 
 def _split_table(table: str, size: int) -> List[str]:
-    """表格超预算时按行切，但**每块都重复表头**，否则后半张表读不懂。"""
+    """表格超预算时按行切，但**每块都重复表名和表头**，否则后半张表读不懂。
+
+    预算比正文宽 3 倍：正文 200 字是"一段话说清一件事"，表格一行才 100 多字
+    （`| 乘用车 | 1.6升以上至2.0升 | 每辆 | 360元至660元 | … |`），按 200 切
+    就是一行一块 —— 实测车船税法一张 17 行的税额表被切成 14 块，每块只有
+    一行数据，行与行之间的对应关系（同一税目下不同排量档）全丢了。
+    表格的语义单元是"整张表"，切碎只会让每块都变成没有上下文的碎片。
+    """
     rows = [r for r in table.splitlines() if r.strip()]
-    if len(rows) <= 2 or sum(len(r) for r in rows) <= size:
+    caption = ""
+    if rows and not rows[0].lstrip().startswith("|"):
+        caption, rows = rows[0].strip(), rows[1:]
+    if not rows:
+        return [table]
+    width = sum(len(r) for r in rows) + len(caption)
+    # 行数上限和字数预算各管一头：
+    #   · 字数 —— 单元格很宽（税额表一行 100 多字），十几行就上千字；
+    #   · 行数 —— 单元格很窄（`| 菜1 | 口味1 |`），50 行才 500 字，按字数
+    #     根本没超预算，但一整张 50 行的表压成一个向量，检索粒度已经很粗。
+    max_rows = max(8, int(size / 12))
+    if len(rows) <= 2 or (width <= size * 3 and len(rows) <= max_rows):
         return [table]
 
     def _is_sep(row: str) -> bool:
@@ -92,12 +120,12 @@ def _split_table(table: str, size: int) -> List[str]:
         header, data = rows[:2], rows[2:]
     else:
         header, data = [], rows
-    head_text = "\n".join(header)
-    budget = max(size - len(head_text), size // 2)
+    head_text = "\n".join(([caption] if caption else []) + header)
+    budget = max(size * 3 - len(head_text), size)
 
     out, cur, cur_len = [], [], len(head_text)
     for r in data:
-        if cur and cur_len + len(r) > budget:
+        if cur and (cur_len + len(r) > budget or len(cur) >= max_rows):
             out.append("\n".join(([head_text] if head_text else []) + cur))
             cur, cur_len = [], len(head_text)
         cur.append(r)

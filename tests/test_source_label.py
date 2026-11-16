@@ -36,3 +36,33 @@ def test_source_file_wins_over_source_path():
 def test_empty_metadata_says_unknown_but_not_crash():
     assert R._doc_source({}) == "未知来源"
     assert R._doc_source({"source_file": "  "}) == "未知来源"
+
+
+# ========== PDF 语料的文件名清洗 ==========
+#
+# PDF 原件叫「中华人民共和国专利法_20201017_ff808081752b7d43.pdf」。直接把
+# source_file 摆到来源栏，用户看到的就是一串对象 id —— 他要的是"哪部法"，
+# 不是"哪个文件"。清洗必须**只认这个尾巴**，别把普通文件名改坏。
+
+def test_pdf_hash_suffix_stripped():
+    meta = {"source_file": "中华人民共和国专利法_20201017_ff808081752b7d43.pdf"}
+    assert R._doc_source(meta) == "专利法.pdf"
+
+
+def test_pdf_name_without_prefix_kept_readable():
+    """已经是「某法_日期_hash.pdf」但没带「中华人民共和国」前缀时，
+    只去尾巴，不多此一举地删字。"""
+    meta = {"source_file": "合伙企业法_20060827_2c909fdd678bf17901678bf63dce034d.pdf"}
+    assert R._doc_source(meta) == "合伙企业法.pdf"
+
+
+def test_markdown_source_untouched():
+    """md 语料没有日期尾巴，一个字都不能动，否则评测的 expected_source 会失配。"""
+    assert R._doc_source({"source_file": "劳动合同法.md"}) == "劳动合同法.md"
+    assert R._doc_source({"source_file": "test8.txt"}) == "test8.txt"
+
+
+def test_short_hex_is_not_treated_as_hash():
+    """名字里本来就有 `_20240101_ab` 这种片段（不是对象 id）时不能误删。"""
+    meta = {"source_file": "会议纪要_20240101_ab.pdf"}
+    assert R._doc_source(meta) == "会议纪要_20240101_ab.pdf"
