@@ -27,7 +27,7 @@ from typing import Dict, Mapping, Optional
 # 与 embeddings_shared 的默认值保持一致（那里 import langchain，CI 装不起，
 # 所以这里不能直接引用；一致性由 tests/test_index_meta.py 钉住）。
 DEFAULT_LOCAL_MODEL = "BAAI/bge-base-zh-v1.5"
-DEFAULT_OLLAMA_MODEL = "nomic-embed-text"
+DEFAULT_OLLAMA_MODEL = "bge-m3"
 
 SIGNATURE_FILE = "_embed.json"
 

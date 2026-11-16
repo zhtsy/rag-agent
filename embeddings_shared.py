@@ -6,9 +6,11 @@
 | provider | 实现 | 用在哪 |
 |---|---|---|
 | `bge`（**默认**） | sentence-transformers 加载 BAAI/bge-base-zh-v1.5 | 云端容器 |
-| `ollama` | Ollama 的 nomic-embed-text | 本地 WSL（既有 chroma_db 就是它建的） |
+| `ollama` | Ollama 的 bge-m3（中文语料建库用它） | 本地 WSL，主口径 `chroma_db_law_pdf` 就是它建的 |
 
 默认值刻意保持 `bge`：云端不设这个变量，行为与迁移前完全一致。
+（`ollama` 分支的默认值 2026-11-16 从 `nomic-embed-text` 改成 `bge-m3`——
+英文模型建中文法律库会让排序反转，见 `index_meta.py` 开头的事故记录。）
 
 ⚠️ **换 provider 等于换向量空间，必须重建 chroma_db。**
 两个模型输出都是 768 维，chroma 不会报任何错，只会静默把检索质量打崩
@@ -47,8 +49,9 @@ if _ENV_FILE.is_file() and not os.getenv("RAG_EMBED_PROVIDER"):
         pass
 
 DEFAULT_MODEL = "BAAI/bge-base-zh-v1.5"
-# 本地 Ollama 的向量模型；与 py_code/chroma_db 里已有的向量保持一致
-DEFAULT_OLLAMA_MODEL = "nomic-embed-text"
+# 本地 Ollama 的向量模型；与主口径 chroma_db_law_pdf（bge-m3）保持一致。
+# 早期 demo 库 chroma_db 是 nomic-embed-text 建的，切那套要显式设 RAG_EMBED_MODEL。
+DEFAULT_OLLAMA_MODEL = "bge-m3"
 DEFAULT_OLLAMA_HOST = "http://127.0.0.1:11434"
 
 # model_name -> SentenceTransformer 实例
@@ -107,7 +110,23 @@ def get_embeddings() -> Embeddings:
             or DEFAULT_OLLAMA_HOST
         ).strip()
         model = (os.getenv("RAG_EMBED_MODEL") or DEFAULT_OLLAMA_MODEL).strip()
-        return OllamaEmbeddings(model=model, base_url=host)
+
+        # 嵌入模型强制跑 CPU，**不要**交回 ollama 自动调度。
+        #
+        # 本机是 6 GB 显存的 3060 Laptop：生成用 qwen2.5:7b 要 4.9 GiB，bge-m3 要 1.6 GiB，
+        # 合计 6.5 GiB —— 装不下。于是每道题都在"检索加载嵌入模型 → 踢掉生成模型 →
+        # 生成再踢回来"之间来回换，每次换出还要等显存回收约 5 秒。实测 47 道题触发
+        # 57 次 runner 重载、168 次 VRAM 回收等待，单题凭空多出 15 秒左右。
+        #
+        # bge-m3 只有 566 M 参数，一次 query 的 embedding 在 CPU 上是几十毫秒，
+        # 让出这 1.6 GiB 远比来回重载便宜。注意 **只是算力位置变了，权重和向量空间没变**，
+        # 所以不需要重建索引（换 provider / 换模型才需要）。
+        # 想回到"自动调度"就把 RAG_EMBED_NUM_GPU 设成 -1。
+        try:
+            _num_gpu = int(os.getenv("RAG_EMBED_NUM_GPU") or 0)
+        except (TypeError, ValueError):
+            _num_gpu = 0
+        return OllamaEmbeddings(model=model, base_url=host, num_gpu=_num_gpu)
 
     return LocalEmbeddings((os.getenv("RAG_EMBED_MODEL") or DEFAULT_MODEL).strip())
 

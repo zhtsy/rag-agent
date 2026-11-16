@@ -10,7 +10,13 @@ import os
 
 import pytest
 
-from kb_paths import DEFAULT_DIRNAME, ENV_VAR, looks_like_index, resolve
+from kb_paths import (
+    DEFAULT_DIRNAME,
+    ENV_VAR,
+    LEGACY_DIRNAME,
+    looks_like_index,
+    resolve,
+)
 
 
 def _make_index(path):
@@ -21,12 +27,29 @@ def _make_index(path):
 
 
 def test_env_unset_uses_default(tmp_path):
+    _make_index(tmp_path / DEFAULT_DIRNAME)
     d, note = resolve(str(tmp_path), {})
     assert d == os.path.join(str(tmp_path), DEFAULT_DIRNAME)
     assert note == ""
 
 
+def test_env_unset_falls_back_to_legacy_demo_index(tmp_path):
+    """主口径没建、demo 库在：可以用，但必须打日志说清楚连的是哪套。"""
+    _make_index(tmp_path / LEGACY_DIRNAME)
+    d, note = resolve(str(tmp_path), {})
+    assert d == os.path.join(str(tmp_path), LEGACY_DIRNAME)
+    assert LEGACY_DIRNAME in note and "nomic" in note
+
+
+def test_env_unset_without_any_index_says_build_first(tmp_path):
+    """两套都没有时不能静默——chroma 会把不存在的路径建成空库，然后什么都拒答。"""
+    d, note = resolve(str(tmp_path), {})
+    assert d == os.path.join(str(tmp_path), DEFAULT_DIRNAME)
+    assert "建库" in note
+
+
 def test_env_blank_treated_as_unset(tmp_path):
+    _make_index(tmp_path / DEFAULT_DIRNAME)
     d, note = resolve(str(tmp_path), {ENV_VAR: "   "})
     assert d == os.path.join(str(tmp_path), DEFAULT_DIRNAME)
     assert note == ""
