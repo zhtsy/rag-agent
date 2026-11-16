@@ -302,6 +302,7 @@ async def chat_stream_endpoint(request: ChatRequest, http_request: Request):
       · out_of_scope  检索没命中 + 拒答 → 知识库本来就没有，正常
       · missed        检索命中 + 拒答   → 漏答，要排查
       · ungrounded    检索没命中 + 硬答 → 无依据作答，幻觉风险
+      · hedged        自认无据却给了具体数值 → 幻觉补偿，最隐蔽（猜对了看不出来）
     confidence 不是"答对的概率"，别拿它做业务判断；质量监控请用 /feedback 的 bad 率。
 
     并发保护：

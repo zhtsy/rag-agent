@@ -51,6 +51,7 @@ from confidence import (
     WEAK_ABSTAIN,
     answer_status,
     compute_confidence,
+    hedged_guess,
     looks_like_abstention,
 )
 # 可观测性：请求级 request_id + 分阶段耗时（见 obs.py 顶部说明）
@@ -58,6 +59,8 @@ import obs as _obs
 # 选块策略：窗口/门槛/加成/top-k 与"是否检索落空"的判定全在这里，
 # 纯函数、无模型依赖，所以能被 tests/test_retrieval_policy.py 覆盖
 import retrieval_policy as _rp
+# 「问的法在不在库里」：纯字符串判定，与索引/模型无关（见 law_scope.py 顶部）
+import law_scope as _law_scope
 # 检索结果缓存：缓的是"检索到的证据"，不是答案——见 retrieval_cache.py 顶部
 import retrieval_cache as _retrieval_cache
 
@@ -120,8 +123,8 @@ embedding_model = get_embeddings()
 # 而是静默新建一个**空库**，检索全空、却一切"正常"——最难查的一类故障。
 # 云端容器与本地项目根都是本文件所在目录，两者行为一致。
 _BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-# 目录统一由 kb_paths 解析：默认生产库；`RAG_CHROMA_DIR` 可切实验库。
-# 配错的路径（不存在 / 空库）会回落到生产库并告警——宁可跑旧索引，
+# 目录统一由 kb_paths 解析：默认法律语料库（31,856 块）；`RAG_CHROMA_DIR` 可切别的索引。
+# 配错的路径（不存在 / 空库）会回落到默认库并告警——宁可跑旧索引，
 # 也不要起一个空库（空库表现为"什么都拒答"，看起来像模型坏了）。
 _CHROMA_DIR, _KB_NOTE = resolve_chroma_dir(_BASE_DIR)
 if _KB_NOTE:
@@ -386,6 +389,58 @@ def _int2cn(n: int) -> str:
 
 
 _SOURCE_FILES_CACHE: Optional[List[str]] = None
+_LAW_STEMS_CACHE: Optional[List[str]] = None
+
+
+def _no_table_mode() -> bool:
+    """RAG_NO_TABLE=1 时开启"去表格"消融（仅实验用，线上默认关）。"""
+    return os.environ.get("RAG_NO_TABLE", "").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+        "on",
+    )
+
+
+def _looks_like_table_chunk(text: str) -> bool:
+    """markdown 表格块判据：≥2 行且每行 ≥2 个竖线。
+
+    与建库侧「汉字占比豁免」用的是同一口径：真正的表格块每行都有多个 "|"，
+    正文里偶尔出现的单个竖线（分隔符、公式）不会满足。
+    """
+    rows = [ln for ln in (text or "").splitlines() if ln.count("|") >= 2]
+    return len(rows) >= 2
+
+
+def _law_stems() -> List[str]:
+    """库里真实存在的法名（去掉「中华人民共和国」和日期/页码尾巴），懒加载一次。
+
+    只给决策阶段的规则 5 用：问句里出现某个法名 → 这题一定是法律问题，
+    不管模型怎么说都得先查一次。用库里的真实名单而不是关键词表，
+    是因为「商业银行的经营原则」这种问法一个通用法律词都不含。
+    """
+    global _LAW_STEMS_CACHE
+    if _LAW_STEMS_CACHE is None:
+        stems = set()
+        for f in _all_source_files():
+            stem = re.sub(r"_p\d{3}\.(png|jpg|jpeg)$", "", f)
+            stem = re.sub(r"\.(md|txt|pdf|png|jpg|jpeg)$", "", stem, flags=re.I)
+            stem = re.sub(r"_\d{8}_[0-9a-f]{6,}$", "", stem)
+            stem = stem.replace("中华人民共和国", "").strip()
+            # ≥2 字才用：「宪法」这种两个字的名字也算，但单字会误伤
+            if len(stem) >= 2:
+                stems.add(stem)
+            # 再去掉"法/条例/规定…"这类后缀，留下主体名。
+            # 「商业银行的经营原则是什么？」里没有"商业银行法"这五个连着的字，
+            # 只有"商业银行"，所以必须靠主体名才能命中。
+            # 主体名 ≥3 字才用：「银行法」的主体是"银行"（2 字），
+            # 那样"去银行办事"这类日常句会被误判成法律问题。
+            core = re.sub(r"(法典|法|条例|规定|办法|解释|细则|决定|规则|通知|批复)$",
+                          "", stem).strip()
+            if len(core) >= 3:
+                stems.add(core)
+        _LAW_STEMS_CACHE = sorted(stems, key=len, reverse=True)
+    return _LAW_STEMS_CACHE
 
 
 def _all_source_files() -> List[str]:
@@ -487,6 +542,18 @@ def _search_knowledge_base_impl(query: str = "", original_query: str = "") -> st
                 for d in exact_docs
             )
 
+        # 点名了《某法》，而库里一篇都没有 → 直接如实拒答。
+        # 这一步必须放在检索之前：等到检索返回结果再判断就晚了，
+        # 别的法里只要出现"计量"两个字就足以过相关性门槛（实测 P03 就是这样
+        # 拿到 5 块《招标投标法》的）——有来源、有分数、但不是问的那部法，
+        # 这种错用户看不出来。
+        missing = _law_scope.missing_laws(search_query, _all_source_files())
+        if missing:
+            names = "、".join("《%s》" % n for n in missing)
+            logger.info(f"📕 未收录点名法: {missing}")
+            _obs.current().note(route="law_absent", candidates=0, top1=0.0, chunks=0)
+            return f"知识库中没有收录{names}，无法引用条文回答。"
+
         # 实体过滤器只认「用户本轮原话」里的实体：
         #   - 用户问"小智喜欢什么"，哪怕 query 被写成了"加里奥和小智…"，过滤器也只留"小智"
         #   - 用户问"他属于哪个国家"，原话没有实体，这时才允许用改写后 query 里的实体
@@ -558,6 +625,17 @@ def _search_knowledge_base_impl(query: str = "", original_query: str = "") -> st
         if not docs:
             return "未在知识库中找到相关信息。"
 
+        # 消融开关（只服务实验，线上默认关）：RAG_NO_TABLE=1 时把表格块从候选里
+        # 剔除，用来量化"表格抽取"的净贡献。判据与建库侧豁免口径一致 —— markdown
+        # 表格块至少两行、每行两个以上竖线，避免把正文里单个 "|" 误删。
+        if _no_table_mode():
+            _kept = [d for d in docs if not _looks_like_table_chunk(d.page_content)]
+            if len(_kept) != len(docs):
+                logger.info(f"🧪 消融：剔除表格块 {len(docs) - len(_kept)} 个")
+                docs = _kept
+            if not docs:
+                return "未在知识库中找到相关信息。"
+
         # rerank 在 CPU 上是串行打分，耗时严格正比于候选对数。
         # 实测稳态约 0.39 秒/对（bge-reranker-base，单条约 210 token，CPU 积分充足时）；
         # CPU 积分耗尽时会劣化到 1.2 秒/对，那是机器限频，不是代码问题。
@@ -589,6 +667,21 @@ def _search_knowledge_base_impl(query: str = "", original_query: str = "") -> st
         # 这里先转成列表只是为了让入参类型统一）
         if isinstance(scores, (int, float)):
             scores = [float(scores)]
+
+        # md 优先（2026-11-13）：同一部法同时有 md 和 pdf 时，两份内容几乎逐字
+        # 相同，rerank 分差常在 0.01 以内 —— 谁进 top-5 由浮点噪声决定。这里给
+        # shadow 块**减分而不是过滤**：同分时 md 胜出，PDF 独有的内容（附表页、
+        # md 漏收的条）依然靠自身分数进榜。
+        #
+        # 两个保险：①候选里一块 md 都没有时（比如问的法只有 PDF）不减分，否则会把
+        # 唯一证据压到门槛以下，误判"检索落空"；②减分幅度默认 0.05，远小于正常
+        # 相关/不相关之间的差距（0.6 vs 0.2），只够打破平局。
+        _sp = float(os.environ.get("RAG_SHADOW_PENALTY", "0.05") or 0)
+        if _sp > 0:
+            _flags = [bool((d.metadata or {}).get("shadow")) for d in docs]
+            if any(_flags) and not all(_flags):
+                scores = [s - _sp if f else s for s, f in zip(scores, _flags)]
+                logger.info(f"🏷️ {sum(_flags)} 块 PDF 副本降权 {_sp}（同分时 md 优先）")
 
         # 在线链路用 jieba 切词（词边界比兜底 tokenizer 准），
         # 但策略模块自己不依赖 jieba——它要能在只有 pytest 的 CI 里跑起来。
@@ -1092,6 +1185,18 @@ SYSTEM_PROMPT_DECIDE = """你的唯一任务是判断用户这一句话需不需
 不需要查（寒暄、闲聊、与知识库无关的通用问题）→ 只输出 {"need_tool": false}，
 不要解释、不要回答用户的问题、不要输出任何多余文字。
 
+【什么算"不用查"——这个范围极小】
+只有三种：打招呼与寒暄（你好/谢谢/再见）、让你复述或整理上一轮已经答过的内容、
+以及和法律法规完全无关的通用常识（今天几号、怎么煮鸡蛋）。
+反例（以下**全部必须检索**，不许判 false）：
+  · 问某部法律/条例/司法解释怎么规定，哪怕没写书名号
+    「商业银行的经营原则是什么？」 → 检索（答案在商业银行法里）
+    「民法典怎么看违约金过高」     → 检索
+  · 问金额、比例、税率、期限、罚则、构成要件 → 检索
+  · 问某个概念在实务中如何认定/处理（合同、侵权、继承、劳动争议）→ 检索
+判断标准不是"我知不知道答案"，而是"这句话属不属于法律专业问题"。
+你凭记忆答出来的法条经常是旧版或错的，而接口上看不出来——这是本项目最严重的失败。
+
 【最高优先级：不许抢答（违反即视为任务失败）】
 哪怕你已经知道答案、哪怕答案就明明白白写在下面的对话历史里，你也不许在这里回答用户。
 你的输出只有两种合法形态：一次 search_knowledge_base 调用，或者 {"need_tool": false} 这七个字。
@@ -1264,7 +1369,8 @@ async def _run_tool_decision(prompt_messages: List[BaseMessage], last_user_msg: 
         # 把沉默当判断的后果是 2026-11-07 实测到的那次静默拒答：
         # T038「谁住在广州」没有 graph/retrieve、sources=[]、status=out_of_scope，
         # 从接口上看和一次真正的库外拒答一模一样。判据见 decide_guard.py。
-        if _dg.should_force_retrieval(last_user_msg, raw, has_context=has_context):
+        if _dg.should_force_retrieval(last_user_msg, raw, has_context=has_context,
+                                      law_names=_law_stems()):
             # 检索词去掉"根据知识库，"这类前缀，原始问句仍留在 original_query
             # （_stamp_original_query 靠它抽实体，不能丢）
             fallback_query = _dg.strip_retrieval_prefix(last_user_msg)
@@ -1588,6 +1694,10 @@ _SCORE_TAG_RE = re.compile(r"【置信度：([0-9.]+)】")
 # 来源路径前缀，长的必须排在短的之前
 _SOURCE_PREFIXES = ("./knowledge_base/", "knowledge_base/", "./")
 
+# PDF 语料的文件名带日期和对象 id（`..._20201017_ff808081752b7d43.pdf`），
+# 展示前要洗掉。md 语料没有这个尾巴，所以只匹配「日期 + ≥4 位十六进制」。
+_PDF_SOURCE_RE = re.compile(r"^(?P<stem>.+?)_\d{8}_[0-9a-f]{4,}(?P<ext>\.pdf)$", re.IGNORECASE)
+
 # 检索"没找到 / 出错"的回执文案。它们没有【来源：】标记，也不是证据，
 # 不能当 context 下发（否则拒答题也会有一堆"上下文"，事实核查会被喂假证据）。
 _NO_EVIDENCE_MARKERS = (
@@ -1626,11 +1736,20 @@ def _norm_source_name(name: str) -> str:
         · 图谱节点 source（fix_source）→ "test8.txt"
     不归一的话，同一条来源会以两种形式同时出现在 sources 里，
     前端看起来像两个不同文件，评测比对 expected_source 也会误判。
+
+    另外把 PDF 文件名洗成人类可读的样子：索引里的 `source_file` 是原始文件名
+    `中华人民共和国专利法_20201017_ff808081752b7d43.pdf`，那串日期和对象 id
+    对用户没有任何意义，直接展示会让来源栏变成一行乱码。
     """
     name = (name or "").strip()
     for pref in _SOURCE_PREFIXES:
         if name.startswith(pref):
-            return name[len(pref):]
+            name = name[len(pref):]
+            break
+    m = _PDF_SOURCE_RE.match(name)
+    if m:
+        stem = m.group("stem").replace("中华人民共和国", "").strip() or m.group("stem")
+        return f"{stem}{m.group('ext')}"
     return name
 
 
@@ -1716,6 +1835,7 @@ def _scores_from_turn(turn_messages: Sequence[BaseMessage]) -> List[float]:
 _looks_like_abstention = looks_like_abstention
 _compute_confidence = compute_confidence
 _answer_status = answer_status
+_hedged_guess = hedged_guess
 _STRONG_ABSTAIN = STRONG_ABSTAIN
 _WEAK_ABSTAIN = WEAK_ABSTAIN
 
@@ -1744,8 +1864,12 @@ def _build_answer_meta(turn_messages: Sequence[BaseMessage], raw_content: str,
     # _contexts_from_turn 会把"未在知识库中找到相关信息。"这种回执也收成一条 context
     # （它没有来源标记），拿它当证据会把正常拒答误判成 missed（有证据却没答）。
     has_evidence = bool(meta.get("sources"))
+    # 「自认无据 + 仍给数值」：证据在、答案也像模像样，但数值没有任何支撑。
+    # 只标状态不改答案——流式 token 已经吐出去了，改文本等于对用户撒谎。
+    hedged = _hedged_guess(meta.get("answer", ""))
+    signals["hedged_guess"] = hedged
     meta["confidence"] = confidence
-    meta["status"] = _answer_status(signals["abstained"], has_evidence)
+    meta["status"] = _answer_status(signals["abstained"], has_evidence, hedged)
     meta["contexts"] = contexts
     meta["signals"] = signals
 
