@@ -1,0 +1,92 @@
+[
+ {
+  "id": "MX01",
+  "question": "借款合同的印花税税率是多少？",
+  "expected_answer": "印花税税目税率表：合同（指书面合同）—借款合同，税率为借款金额的万分之零点五。",
+  "expected_source": "中华人民共和国印花税法_20210610_ff80818179f5da5e0179f890885b0481.pdf",
+  "category": "表格-税率",
+  "must_contain": ["万分之零点五"],
+  "must_not_contain": []
+ },
+ {
+  "id": "MX02",
+  "question": "1.6升以上至2.0升（含）的乘用车，车船税年基准税额是多少？",
+  "expected_answer": "车船税税目税额表：乘用车〔按发动机汽缸容量（排气量）分档〕1.6升以上至2.0升（含）的，每辆，360元至660元。",
+  "expected_source": "中华人民共和国车船税法_20190423_ff8080816f135f46016f215dc4071a64.pdf",
+  "category": "表格-税额",
+  "must_contain": ["360元至660元"],
+  "must_not_contain": []
+ },
+ {
+  "id": "MX03",
+  "question": "挂车的车船税怎么计算？",
+  "expected_answer": "挂车按整备质量每吨计算，按照货车税额的50%计算。",
+  "expected_source": "中华人民共和国车船税法_20190423_ff8080816f135f46016f215dc4071a64.pdf",
+  "category": "表格-税额",
+  "must_contain": ["50%"],
+  "must_not_contain": []
+ },
+ {
+  "id": "MX04",
+  "question": "原油的资源税税率是多少？",
+  "expected_answer": "资源税税目税率表：能源矿产—原油，征税对象为原矿，税率6%。",
+  "expected_source": "中华人民共和国资源税法_20190826_ff8080816f3cbb3c016f4635be1b2873.pdf",
+  "category": "表格-税率",
+  "must_contain": ["6%", "原油"],
+  "must_not_contain": []
+ },
+ {
+  "id": "MX05",
+  "question": "大气污染物的环境保护税税额标准是多少？",
+  "expected_answer": "环境保护税税目税额表：大气污染物，每污染当量1.2元至12元。",
+  "expected_source": "中华人民共和国环境保护税法_20251028_6bae366fd9f94fbf9450c48a68bfc68a.pdf",
+  "category": "表格-税额",
+  "must_contain": ["1.2元至12元"],
+  "must_not_contain": []
+ },
+ {
+  "id": "MX06",
+  "question": "甘肃的耕地占用税平均税额是每平方米多少元？",
+  "expected_answer": "各省、自治区、直辖市耕地占用税平均税额表：内蒙古、西藏、甘肃、青海、宁夏、新疆为12.5元／平方米。",
+  "expected_source": "中华人民共和国耕地占用税法_20181229_ff8080816f135f46016f213156b61815.pdf",
+  "category": "表格-税额",
+  "must_contain": ["12.5"],
+  "must_not_contain": []
+ },
+ {
+  "id": "MX07",
+  "question": "商业银行以什么为经营原则？",
+  "expected_answer": "商业银行以安全性、流动性、效益性为经营原则，实行自主经营、自担风险、自负盈亏、自我约束。",
+  "expected_source": "中华人民共和国商业银行法_20150829_2c909fdd678bf17901678bf7eba9086b.pdf",
+  "category": "条文-PDF独有",
+  "must_contain": ["安全性", "效益性"],
+  "must_not_contain": []
+ },
+ {
+  "id": "MX08",
+  "question": "财产案件的案件受理费按什么标准交纳？",
+  "expected_answer": "财产案件根据诉讼请求的金额或者价额，按照下列比例分段累计交纳：不超过1万元的每件交纳50元；超过1万元至10万元的部分按2.5%交纳……",
+  "expected_source": "诉讼费用交纳办法_20061219_ff8080816f3e98bd016f41e1395a015f.pdf",
+  "category": "条文-扫描件",
+  "must_contain": ["诉讼请求的金额或者价额"],
+  "must_not_contain": []
+ },
+ {
+  "id": "MX09",
+  "question": "申请仲裁时争议金额怎么确定？",
+  "expected_answer": "仲裁案件受理费表中的争议金额，以申请人请求的数额为准；请求的数额与实际争议金额不一致的，以实际争议金额为准。",
+  "expected_source": "仲裁委员会仲裁收费办法_19950728_ff8080816f3cbb3c016f4145fce81fa4.pdf",
+  "category": "条文-扫描件",
+  "must_contain": ["以申请人请求的数额为准"],
+  "must_not_contain": []
+ },
+ {
+  "id": "MX10",
+  "question": "土地增值税实行几级税率？各级税率分别是多少？",
+  "expected_answer": "土地增值税实行四级超率累进税率：增值额未超过扣除项目金额50%的部分税率为30%；超过50%未超过100%的部分税率为40%；超过100%未超过200%的部分税率为50%；超过200%的部分税率为60%。",
+  "expected_source": "中华人民共和国土地增值税暂行条例_20110108_ff8080816f3cbb3c016f411bd9e317a0.pdf",
+  "category": "条文-PDF独有",
+  "must_contain": ["四级超率累进税率"],
+  "must_not_contain": []
+ }
+]

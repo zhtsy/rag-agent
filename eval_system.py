@@ -69,7 +69,7 @@ import eval_layers
 # ---------------------------------------------------------------- HTTP / SSE
 def ask_stream(base: str, question: str, session_id: str, timeout: int = 180,
                max_retries: int = 3):
-    """打 /chat/stream，返回 (answer, sources, confidence, contexts)。
+    """打 /chat/stream，返回 (answer, sources, confidence, contexts, status)。
 
     429 是**并发闸门的正常回执**（后端同时在跑的请求到上限了，见 main1.py）。
     评测是顺序跑的，但只要有人同时在用前端就可能撞上。这里按 `Retry-After` 重试几次，
@@ -84,7 +84,7 @@ def ask_stream(base: str, question: str, session_id: str, timeout: int = 180,
             url, data=body, headers={"Content-Type": "application/json", **_auth_headers()}
         )
         try:
-            chunks, sources, contexts, confidence = [], [], [], None
+            chunks, sources, contexts, confidence, status = [], [], [], None, None
             with urllib.request.urlopen(req, timeout=timeout) as resp:
                 for raw in resp:
                     line = raw.decode("utf-8", "replace").strip()
@@ -107,7 +107,12 @@ def ask_stream(base: str, question: str, session_id: str, timeout: int = 180,
                         contexts = obj["contexts"] or []
                     if "confidence" in obj:
                         confidence = obj["confidence"]
-            return "".join(chunks), sources, confidence, contexts
+                    # status 是五态判定（answered / out_of_scope / missed /
+                    # ungrounded / hedged）。以前没存，于是"这条是正常拒答还是
+                    # 有证据没答出来"只能靠人读答案猜；存下来才能统计。
+                    if "status" in obj:
+                        status = obj["status"]
+            return "".join(chunks), sources, confidence, contexts, status
         except urllib.error.HTTPError as e:
             if e.code != 429 or attempt >= max_retries:
                 raise
@@ -196,7 +201,7 @@ def main() -> int:
         print(f"[{i}/{len(cases)}] {qid} {q}")
         t0 = time.time()
         try:
-            answer, sources, confidence, ctx = ask_stream(
+            answer, sources, confidence, ctx, status = ask_stream(
                 args.base, q, f"eval-{qid}", timeout=args.timeout
             )
         except urllib.error.URLError as e:
@@ -231,6 +236,7 @@ def main() -> int:
             "answer_len": len(answer),
             "sources": sources,
             "confidence": confidence,
+            "status": status,
             "hit": hit,
             "hit_rate": round(hit_rate, 4),
             "violation": viol,
@@ -252,11 +258,32 @@ def main() -> int:
     for r in ok:
         cats.setdefault(r.get("category") or "未分类", []).append(r["score"])
 
+    # 按来源文件分组：一次喂多个测试集时（法律 47 + 混合 10 + 表格 10），
+    # 总分会被条数多的那套稀释，看不出"表格题到底怎么样"。分开列一份。
+    by_file = {}
+    for r in ok:
+        by_file.setdefault(r.get("file") or "未标注", []).append(r["score"])
+
     print("=" * 60)
     print(f"📊 总条数 {len(cases)} ｜ 成功 {len(ok)} ｜ 失败 {len(cases) - len(ok)}")
     print(f"📊 平均得分 {avg:.3f} ｜ 总耗时 {time.time() - t_all:.1f}s")
     for cat, scores in sorted(cats.items(), key=lambda kv: -sum(kv[1]) / len(kv[1])):
         print(f"    {cat:<12} 均分 {sum(scores) / len(scores):.3f}  ({len(scores)} 条)")
+    if len(by_file) > 1:
+        print("    ── 按测试集 ──")
+        for fname, scores in sorted(by_file.items()):
+            print(f"    {fname:<24} 均分 {sum(scores) / len(scores):.3f}  ({len(scores)} 条)")
+
+    # 状态分布：总分看不出"拒答是否正常"，五态能。out_of_scope 多说明题库里域外题
+    # 占比高（正常）；一条 missed 或 hedged 都不该出现，出现就该去查具体是哪条。
+    by_status = {}
+    for r in ok:
+        key = r.get("status") or "—"
+        by_status[key] = by_status.get(key, 0) + 1
+    if any(k != "—" for k in by_status):
+        print("    ── 状态 ──")
+        for s, n in sorted(by_status.items(), key=lambda kv: (-kv[1], kv[0])):
+            print(f"    {s:<12} {n} 条")
 
     weak = sorted(ok, key=lambda r: r["score"])[:5]
     if weak and weak[0]["score"] < 0.8:
@@ -307,6 +334,13 @@ def main() -> int:
             c: {"count": len(s), "avg_score": round(sum(s) / len(s), 4)}
             for c, s in cats.items()
         },
+        # 按测试集分开的均分，见上面 by_file 的注释
+        "files": {
+            f: {"count": len(s), "avg_score": round(sum(s) / len(s), 4)}
+            for f, s in by_file.items()
+        },
+        # 五态分布（answered / out_of_scope / missed / ungrounded / hedged）
+        "statuses": by_status,
         # ★ 分层归因汇总：端到端分数之外，单独给出「检索召回率」与损失拆解
         "layers": layer_sum,
         "details": results,

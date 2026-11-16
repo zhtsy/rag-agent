@@ -1,0 +1,56 @@
+[
+ {
+  "id": "P01",
+  "category": "直接检索",
+  "question": "《商业银行法》规定商业银行以哪些原则作为经营原则？",
+  "must_contain": ["安全性", "流动性", "效益性"],
+  "must_not_contain": ["未在知识库中找到", "无法从知识库"],
+  "expected_source": "商业银行法.pdf",
+  "note": "md 语料里没有《商业银行法》，只能从 PDF 索引检索到 —— 用来证明 PDF 内容确实入库了，而不是只有 md 在起作用。"
+ },
+ {
+  "id": "P02",
+  "category": "直接检索",
+  "question": "《邮政法》规定邮政普遍服务业务的资费由哪个部门制定？",
+  "must_contain": ["国务院价格主管部门"],
+  "must_not_contain": ["未在知识库中找到", "无法从知识库"],
+  "expected_source": "邮政法.pdf",
+  "note": "同上，纯 PDF 增量内容。"
+ },
+ {
+  "id": "P03",
+  "category": "直接检索",
+  "question": "《计量法》规定国家采用什么计量单位制？",
+  "must_contain": ["国际单位制"],
+  "must_not_contain": ["未在知识库中找到", "无法从知识库"],
+  "expected_source": "计量法.pdf",
+  "note": "小体积文本型 PDF（0.2 MB），检验文字层抽取质量。"
+ },
+ {
+  "id": "P04",
+  "category": "直接检索",
+  "question": "《国旗法》规定哪些场所应当每日升挂国旗？",
+  "must_contain": ["天安门广场"],
+  "must_not_contain": ["未在知识库中找到", "无法从知识库"],
+  "expected_source": "国旗法.pdf",
+  "note": "扫描件（6.8 MB，无文字层，全靠 tesseract OCR）。这题的意义不是考模型，是考 OCR —— 如果它挂了，说明扫描件链路不可用。"
+ },
+ {
+  "id": "P05",
+  "category": "条文定位",
+  "question": "《专利法》第三十六条是怎么规定的？",
+  "must_contain": ["实质审查", "参考资料"],
+  "must_not_contain": [],
+  "expected_source": "专利法.pdf",
+  "note": "同一部法 md 和 pdf 都在库里。按「法名+条号」去重后 md 优先保留，这题用来确认去重没有把内容删丢（答不出来就是去重误删）。"
+ },
+ {
+  "id": "P06",
+  "category": "直接检索",
+  "question": "《民法典》合同编规定，当事人订立合同可以采用哪些形式？",
+  "must_contain": ["书面形式", "口头形式"],
+  "must_not_contain": ["未在知识库中找到", "无法从知识库"],
+  "expected_source": "民法典合同编.md",
+  "note": "纯 md 内容的回归题：加入 PDF 后不能把原来能答的题带崩。"
+ }
+]
