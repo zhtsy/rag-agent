@@ -13,9 +13,15 @@
 import os
 
 import pytest
-from PIL import Image, ImageDraw
 
-from ingest.imgtable import extract_tables
+# CI 只装 pytest（requirements-dev.txt），PIL 不在里面。图片表格链路的测试
+# 整体依赖 PIL，缺了就在收集阶段 ImportError，把整条 CI 打成红——一条环境缺失
+# 不该表现为「测试失败」，所以整模块跳过。
+pytest.importorskip("PIL", reason="CI 不装 PIL；图片表格测试在本地/镜像里跑")
+
+from PIL import Image, ImageDraw  # noqa: E402
+
+from ingest.imgtable import extract_tables  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CART = os.path.join(
