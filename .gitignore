@@ -3,8 +3,12 @@
 .env.bak
 *.env
 
-# ========== 向量数据库 ==========
-chroma_db/
+# ========== 向量数据库（只存「怎么建」，不存「建出来的东西」） ==========
+# chroma_db/             早期 demo 库，145 块
+# chroma_db_law_pdf/     主口径，31,856 块（273 MB）
+# chroma_db_law*/bak*    建库快照，每个 70–80 MB
+# 全加起来约 880 MB，进仓库只会让 clone 变慢，重建靠 scripts/build_kb_v2.py。
+chroma_db*/
 dify/
 
 # ========== 模型文件 ==========
