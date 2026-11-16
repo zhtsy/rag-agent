@@ -59,6 +59,35 @@ CONFIDENCE_UNMEASURED = 0.5
 _SENTENCE_SPLIT = re.compile(r"[。！？!?\n]")
 
 
+# 「自认无据 + 仍给数值」——幻觉补偿结构（2026-11-15 加）。
+#
+# 实例（reports/ablation/C.json 的 MX01，表格块被剔除后）：
+#   「…但是，资料中并未直接给出借款合同的具体印花税率。通常情况下，借款合同的
+#     印花税率是万分之零点五（0.0005）。」
+# 前半句承认证据里没有，后半句还是给了数。外部看是满分答案（得分 1.00、
+# confidence 0.9524），其实数值纯属模型记忆——恰恰猜对了，于是没人发现。
+#
+# 为什么不能简单加进 WEAK_ABSTAIN：同一批里 MX04 也在说「具体税率并未直接给出」，
+# 但它后面只说"由省级政府决定"，没有编数，那是**诚实回答**，不该判成幻觉。
+# 所以判据必须带上「声明之后确实出现了具体数值」这个条件。
+_NO_EVIDENCE_PHRASES = (
+    "并未直接给出", "没有直接给出", "未直接给出",
+    "并未明确给出", "没有明确给出", "未明确给出",
+    "并未给出具体", "没有给出具体", "未给出具体",
+    "未提及具体", "没有提及具体",
+)
+
+# 「具体数值」= 带单位的阿拉伯数字，或「万分之零点五」这类中文分数表达。
+# 单位只收金额/面积/体积/倍数/百分比：这些是"编出来的数"最典型的形态。
+# 刻意不收「年/天/个月」——年份（"2021 年"）会大量误伤，而刑期多是
+# 「三年以下」这种中文数字，本来也不在这个正则的覆盖范围里。宁可漏抓，不要误抓：
+# 误抓的代价是把诚实回答标成幻觉，比漏掉一条更难解释。
+_QTY_RE = re.compile(
+    r"\d+(?:\.\d+)?\s*(?:%|‰|％|万元|亿元|元|吨|平方米|立方米|倍)"
+    r"|[零一二三四五六七八九十百千万]+分之[零一二三四五六七八九十]+"
+)
+
+
 def split_sentences(text: str) -> list:
     """把答案切成句子列表（去掉空串）。空输入返回空列表。"""
     if not text:
@@ -89,6 +118,30 @@ def looks_like_abstention(answer: str) -> bool:
         return True
     if any(m in last for m in STRONG_ABSTAIN):
         return True
+    return False
+
+
+def hedged_guess(answer: str) -> bool:
+    """答案里有没有「先承认没证据、紧接着给出具体数值」的结构。
+
+    只看**声明所在句（声明之后的部分）和下一句**。再往后就进入别的话题了，
+    那里出现金额很正常（"第四十八条规定罚款五万元"），扫全文会把诚实回答误判。
+
+    与 looks_like_abstention 的关系：那个函数判"整条回答没答案"，这个函数判
+    "有答案但数值没依据"。两者可以同时成立，也可以都不成立——它们是正交的两件事。
+    """
+    sentences = split_sentences((answer or "").strip())
+    for i, sent in enumerate(sentences):
+        for phrase in _NO_EVIDENCE_PHRASES:
+            pos = sent.find(phrase)
+            if pos < 0:
+                continue
+            # 同一句里声明之后就有数（"资料未给出具体税率，一般约 3%"）
+            if _QTY_RE.search(sent[pos + len(phrase):]):
+                return True
+            # 下一句才给数（"…并未直接给出。通常情况下是万分之零点五"）
+            if i + 1 < len(sentences) and _QTY_RE.search(sentences[i + 1]):
+                return True
     return False
 
 
@@ -133,14 +186,23 @@ def compute_confidence(scores: Sequence[float],
     }
 
 
-def answer_status(abstained: bool, has_evidence: bool) -> str:
-    """把「答没答」和「有没有证据」交叉成四种状态，供前端与排查使用。
+def answer_status(abstained: bool, has_evidence: bool, hedged: bool = False) -> str:
+    """把「答没答」「有没有证据」「数值有没有依据」交叉成五种状态。
 
       answered      有证据 + 正常作答        → 常规情况
       out_of_scope  无证据 + 拒答            → 知识库本来就没有，正常拒答
       missed        有证据 + 拒答            → 检索到了却没组织出答案，异常，要查
       ungrounded    无证据 + 硬答            → 没有依据还在答，幻觉风险，最该警惕
+      hedged        自认无据却给了具体数值   → 幻觉补偿，**最隐蔽的一种**：
+                                              答案读起来有据（"资料中并未直接给出，
+                                              但通常情况下是…"），数值却是模型自己
+                                              补的，猜对了就完全看不出来。
+
+    hedged 优先于 answered/ungrounded：它描述的是"这份答案里有一类内容没有任何
+    证据支撑"，这个事实比"有没有检索到证据"更该被看见。
     """
     if abstained:
         return "missed" if has_evidence else "out_of_scope"
+    if hedged:
+        return "hedged"
     return "answered" if has_evidence else "ungrounded"

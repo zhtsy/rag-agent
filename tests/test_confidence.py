@@ -14,6 +14,7 @@ from confidence import (
     CONFIDENCE_UNMEASURED,
     answer_status,
     compute_confidence,
+    hedged_guess,
     looks_like_abstention,
     split_sentences,
 )
@@ -155,3 +156,73 @@ def test_user_reported_case_end_to_end():
     conf, sig = compute_confidence(scores, answer)
     assert conf is None
     assert answer_status(sig["abstained"], has_evidence) == "out_of_scope"
+
+
+# ============================================================
+# 4. 幻觉补偿：「自认无据 + 仍给数值」（2026-11-15 加）
+# ============================================================
+# 来源：消融实验 C 组（剔除表格块）跑出来的真实答案。表格块没了，
+# 模型先说"资料里没给"，紧接着把数字凭记忆补上——而这一条**猜对了**，
+# 得分 1.00、confidence 0.9524，外部完全看不出问题。
+MX01_ANSWER = (
+    "根据《中华人民共和国印花税法》，借款合同属于应税合同。"
+    "其计税依据为合同所列金额（不包括增值税税款），而印花税的应纳税额按照计税依据乘以适用税率计算。\n\n"
+    "但是，资料中并未直接给出借款合同的具体印花税率。"
+    "通常情况下，借款合同的印花税率是万分之零点五（0.0005）。"
+    "请注意，具体税率可能会有所调整，请以当地税务机关的规定为准。"
+)
+
+# 同一批里的对照组：它也在说"并未直接给出"，但后面只说"由省级政府决定"，
+# 没有编数 —— 诚实回答，不能判成幻觉。
+MX04_ANSWER = (
+    "根据资料中的信息，原油资源税的具体税率并未直接给出。"
+    "按照资源税法的规定，资源税实行从价计征或从量计征的方式，"
+    "具体适用税率由省、自治区、直辖市人民政府提出，并报同级人民代表大会常务委员会决定。"
+    "因此，具体的原油资源税税率需要参照相关省级政府的决定和公告来确定。"
+)
+
+
+def test_hedged_guess_catches_real_case():
+    """真实案例：表格块被剔除后，模型自认无据却补了"万分之零点五"。"""
+    assert hedged_guess(MX01_ANSWER) is True
+
+
+def test_hedged_guess_does_not_flag_honest_answer():
+    """MX04 只承认没给，没有编数 → 不能判成幻觉。误杀比漏抓更难解释。"""
+    assert hedged_guess(MX04_ANSWER) is False
+
+
+def test_hedged_guess_same_sentence():
+    """声明和数值在同一句里也要抓到。"""
+    assert hedged_guess("资料中未直接给出具体税率，一般约为 3%。") is True
+
+
+def test_hedged_guess_ignores_trailing_disclaimer():
+    """经典误伤场景：主答案有据，末尾补充"某细节没说"。
+
+    "小陈养了豆豆。资料只提到这个名字，没有说明是什么品种。"
+    这是正确答案（当年就是按前 40 字扫把它误判成拒答的），这里同理不能误判。
+    """
+    assert hedged_guess("小陈养了豆豆。资料只提到这个名字，没有说明是什么品种。") is False
+
+
+def test_hedged_guess_only_looks_one_sentence_ahead():
+    """隔两句才出现的金额不算补偿——那时已经换话题了。"""
+    answer = (
+        "资料中未直接给出该税率。"
+        "下面说明计税依据的构成。"
+        "另有条款规定罚款 5 万元。"
+    )
+    assert hedged_guess(answer) is False
+
+
+def test_answer_status_hedged_takes_priority():
+    """hedged 优先于 answered / ungrounded：有没有证据都得先看见"数值无据"。"""
+    assert answer_status(False, True, hedged=True) == "hedged"
+    assert answer_status(False, False, hedged=True) == "hedged"
+
+
+def test_answer_status_abstain_still_wins():
+    """真拒答优先于 hedged：整条没有答案时，"数值无据"这个细节不重要。"""
+    assert answer_status(True, True, hedged=True) == "missed"
+    assert answer_status(True, False, hedged=True) == "out_of_scope"
