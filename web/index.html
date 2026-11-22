@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<title>法问 Lex · 法律法规智能问答</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="aurora" aria-hidden="true"></div>
+
+<!-- ================= 登录 / 注册 ================= -->
+<section id="auth-screen" class="auth is-hidden">
+  <div class="auth-side">
+    <div class="brand"><span class="brand-mark">§</span><span>法问 <i>Lex</i></span></div>
+
+    <h1>让每一条结论<br>都能指回<span class="grad">原文</span></h1>
+    <p class="lede">481 部法律法规 · 31,856 条索引 · 逐句标注出处</p>
+
+    <ul class="feats">
+      <li><b>混合检索</b><span>向量 + BM25 + 图谱三路，表格与扫描件一并入库</span></li>
+      <li><b>可追溯</b><span>每次回答给出命中法条与原文片段，不是凭记忆作答</span></li>
+      <li><b>知边界</b><span>知识库没有就说没有，并标出本轮回答的可信状态</span></li>
+    </ul>
+
+    <p class="foot">项目演示环境 · 回答仅供参考，不构成法律意见</p>
+  </div>
+
+  <div class="auth-main">
+    <form id="auth-form" class="card" autocomplete="on" novalidate>
+      <div class="card-head">
+        <h3 id="auth-head">欢迎回来</h3>
+        <p id="auth-sub">登录后可以保存并回看你的全部对话</p>
+      </div>
+
+      <div class="tabs" role="tablist">
+        <button type="button" class="tab is-on" data-mode="login" role="tab">登录</button>
+        <button type="button" class="tab" data-mode="register" role="tab">注册</button>
+      </div>
+
+      <div class="field">
+        <label for="username">用户名</label>
+        <input id="username" name="username" type="text" placeholder="3~24 位" autocomplete="username" required>
+      </div>
+
+      <div class="field is-hidden" id="email-field">
+        <label for="email">邮箱 <span class="opt">选填</span></label>
+        <input id="email" name="email" type="email" placeholder="you@example.com" autocomplete="email">
+      </div>
+
+      <div class="field">
+        <label for="password">密码</label>
+        <input id="password" name="password" type="password" placeholder="至少 8 位" autocomplete="current-password" required>
+      </div>
+
+      <p id="auth-error" class="err" role="alert"></p>
+
+      <button type="submit" class="btn-primary" id="auth-submit">登录</button>
+
+      <p class="fine">密码以 scrypt 加盐哈希存储，服务端不保存明文。</p>
+    </form>
+  </div>
+</section>
+
+<!-- ================= 聊天主界面 ================= -->
+<section id="app-screen" class="app is-hidden">
+  <aside class="sidebar" id="sidebar">
+    <div class="side-head">
+      <div class="brand sm"><span class="brand-mark">§</span><span>法问</span></div>
+      <button id="new-chat" class="btn-new" title="新建对话">
+        <span>＋</span> 新建对话
+      </button>
+    </div>
+
+    <nav class="conv-list" id="conv-list" aria-label="历史对话"></nav>
+
+    <div class="side-foot">
+      <div class="avatar" id="user-avatar">·</div>
+      <div class="who">
+        <b id="user-name">—</b>
+        <span id="user-sub">已登录</span>
+      </div>
+      <button id="logout" class="btn-ghost sm" title="退出登录">退出</button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <button class="btn-ghost icon only-mobile" id="menu-btn" aria-label="展开侧栏">☰</button>
+      <div class="title-wrap">
+        <h2 id="conv-title">新对话</h2>
+        <p class="meta" id="conv-meta">尚未开始</p>
+      </div>
+      <div class="status" id="conn-status"><span class="dot"></span><span>知识库已连接</span></div>
+    </header>
+
+    <div class="stream" id="stream" aria-live="polite">
+      <div class="empty" id="empty-state">
+        <div class="empty-mark">§</div>
+        <h3>从一个具体问题开始</h3>
+        <p>回答会标注命中的法条与原文片段；知识库没有的内容会直接说明。</p>
+        <div class="samples">
+          <button type="button" class="sample">借款合同的印花税税率是多少？</button>
+          <button type="button" class="sample">商业银行的经营原则是什么？</button>
+          <button type="button" class="sample">车船税中挂车按什么比例计税？</button>
+          <button type="button" class="sample">土地增值税的扣除项目包括哪些？</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="composer-wrap">
+      <div class="composer">
+        <textarea id="input" rows="1" placeholder="描述你的问题，例如：借款合同的印花税税率是多少？"></textarea>
+        <button id="send" class="btn-send" aria-label="发送">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+            <path d="M12 19V5M5 12l7-7 7 7" fill="none" stroke="currentColor"
+                  stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+      </div>
+      <p class="hint">Enter 发送 · Shift + Enter 换行 · 回答附带法条出处</p>
+    </div>
+  </main>
+</section>
+
+<script src="app.js"></script>
+</body>
+</html>

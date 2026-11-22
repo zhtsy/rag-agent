@@ -30,7 +30,8 @@ from typing import List, Literal, Optional
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse, RedirectResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from loguru import logger
 
@@ -47,6 +48,8 @@ from answer_guard import completeness_supplement
 import evidence as _evidence   # 检索字符串 → 结构化证据；/search 与 MCP 共用，零依赖可单测
 import obs as _obs   # 请求级 request_id + 分阶段耗时，收尾打一行 JSON（见 obs.py）
 import retrieval_cache as _retrieval_cache   # 检索结果缓存；/health 暴露它的统计
+import auth                      # 密码哈希 / 令牌签名 / 登录限流（纯标准库，见 auth.py）
+import app_store                 # 用户与对话归档（SQLite，见 app_store.py 的"为什么另起一张库"）
 
 # 注意：import rag_agent 会加载重排模型，终端里看到 Loading weights 是正常的
 
@@ -138,11 +141,34 @@ app.add_middleware(
 
 
 # =====================================================================
+# 0.5 前端静态页（web/）
+# =====================================================================
+# 挂在 /ui 而不是 /：`/` 现在返回 JSON（探活脚本、部分调用方依赖它），
+# 换成页面等于静默改变一个已有接口的语义。多一个 /ui 前缀的成本，远小于这个风险。
+WEB_DIR = BASE_DIR / "web"
+if WEB_DIR.is_dir():
+    app.mount("/ui", StaticFiles(directory=str(WEB_DIR), html=True), name="ui")
+
+
+@app.get("/app", include_in_schema=False)
+def _app_redirect():
+    """给人用的短地址：/app → /ui/。"""
+    return RedirectResponse(url="/ui/")
+
+
+# =====================================================================
 # 1. 请求/响应模型
 # =====================================================================
 class ChatRequest(BaseModel):
     message: str
     session_id: Optional[str] = "default_session"
+    # 登录用户走这个字段指定"这条消息记到哪个会话"。不传就新建一个。
+    # 传了别人的会话 id 会被 404 挡住（见 app_store.own_conversation 的注释：
+    # 不存在与无权访问返回同一个结果，避免用状态码反推别人的会话是否存在）。
+    conversation_id: Optional[str] = Field(
+        default=None,
+        description="登录用户的目标会话；不传则自动新建。未登录时忽略。",
+    )
     # 保留字段用于 chat_sessions 的归属记录（谁用过这个会话）。
     # 跨会话长期记忆已撤掉，传了也不会注入任何画像——理由见 memory_store 文件头。
     user_id: Optional[str] = Field(
@@ -211,6 +237,9 @@ def health():
         # 当前连的哪套索引、多少块。切实验索引后第一眼就该能看见，
         # 而不是"分数掉了 → 翻日志 → 才发现连错库"。
         "kb": KB_INFO,
+        # 归档层是否真的在写。只报 status=ok 看不出"登录能用但历史一条没存"，
+        # 这三个计数涨不涨，是那个问题的直接判据。
+        "accounts": app_store.stats(),
     }
 
 
@@ -258,6 +287,187 @@ def require_api_key(request: Request) -> None:
         )
 
 
+def require_chat_access(request: Request) -> None:
+    """`/chat/stream` 的准入：**登录用户 或 持有 API-Key 的程序**，二者其一。
+
+    为什么不是"只允许登录"：eval_system.py / MCP / 批处理脚本都只带 X-API-Key，
+    一旦改成强制登录，67 条回归当场全挂。反过来只留 API-Key，浏览器就得把密钥
+    写进前端 JS——等于把密钥公开。
+    所以这里做双通道：**人走 Cookie，机器走 Key**。
+    """
+    if auth.user_from_request(request):
+        return
+    require_api_key(request)
+
+
+# =====================================================================
+# 2.6 账号体系：注册 / 登录 / 登出 / 当前用户
+# =====================================================================
+class RegisterRequest(BaseModel):
+    username: str = Field(..., description="3~24 位：字母、数字、下划线、连字符或中文")
+    password: str = Field(..., description="至少 8 位；服务端只存 scrypt 哈希")
+    email: Optional[str] = None
+
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+def _public_user(row: dict) -> dict:
+    """对外只暴露公开字段。**pwd_hash 连哈希都不能出接口**——
+    泄漏了就等于把离线爆破的原料送出去。
+    """
+    return {
+        "id": row["id"],
+        "username": row["username"],
+        "email": row.get("email"),
+        "created_at": row.get("created_at"),
+        "last_login": row.get("last_login"),
+    }
+
+
+def _set_auth_cookie(resp, token: str) -> None:
+    resp.set_cookie(
+        key=auth.COOKIE_NAME,
+        value=token,
+        max_age=auth.TOKEN_TTL,
+        httponly=True,   # JS 读不到 → 一次 XSS 也偷不走令牌
+        samesite="lax",  # 跨站发起的 POST 不带 Cookie，挡掉大部分 CSRF
+        path="/",
+        # secure=True  # ← 上线 HTTPS 时必须打开；本地 http 打开会导致 Cookie 不下发
+    )
+
+
+def require_user(request: Request) -> dict:
+    """需要登录的接口用这个依赖。401 而不是 403：这是"没认证"，不是"没权限"。"""
+    user = auth.user_from_request(request)
+    if not user:
+        raise HTTPException(
+            status_code=401,
+            detail="未登录或登录已过期",
+            headers={"WWW-Authenticate": "Cookie"},
+        )
+    return user
+
+
+@app.post("/auth/register")
+def auth_register(req: RegisterRequest, request: Request):
+    """注册即登录：注册成功直接下发 Cookie，省掉一次跳转。
+
+    注册接口**不做登录限流**（还没账号），但要防重名刷库：
+    重名由数据库 UNIQUE 约束兜底，并发下也不会插进两个同名用户。
+    """
+    username = (req.username or "").strip()
+    err = auth.validate_credentials(username, req.password or "")
+    if err:
+        raise HTTPException(status_code=400, detail=err)
+
+    try:
+        row = app_store.create_user(
+            username, auth.hash_password(req.password), (req.email or "").strip()
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e)) from None
+
+    token, exp = auth.issue_token(row["id"])
+    logger.info(f"👤 新用户注册：{username}")
+    resp = JSONResponse({"user": _public_user(row), "expires_at": exp})
+    _set_auth_cookie(resp, token)
+    return resp
+
+
+@app.post("/auth/login")
+def auth_login(req: LoginRequest, request: Request):
+    """登录。失败统一回"用户名或密码错误"，**不区分是哪一种**。
+
+    区分了就等于送一个用户名枚举接口：先探测哪些用户名存在，再针对性爆破。
+    代价是用户自己输错时看不到更精确的提示——这个代价是值得付的。
+    """
+    username = (req.username or "").strip()
+    client = request.client.host if request.client else "unknown"
+    key = f"{client}|{username}"
+
+    wait = auth.login_blocked(key)
+    if wait:
+        raise HTTPException(
+            status_code=429,
+            detail=f"尝试次数过多，请 {wait} 秒后再试",
+            headers={"Retry-After": str(wait)},
+        )
+
+    row = app_store.get_user_by_name(username)
+    if not row or not auth.verify_password(req.password or "", row["pwd_hash"]):
+        auth.note_failure(key)
+        raise HTTPException(status_code=401, detail="用户名或密码错误")
+
+    auth.clear_failures(key)
+    app_store.touch_login(row["id"])
+    token, exp = auth.issue_token(row["id"])
+    logger.info(f"🔑 登录成功：{username}")
+    resp = JSONResponse({"user": _public_user(row), "expires_at": exp})
+    _set_auth_cookie(resp, token)
+    return resp
+
+
+@app.post("/auth/logout")
+def auth_logout():
+    resp = JSONResponse({"ok": True})
+    resp.delete_cookie(auth.COOKIE_NAME, path="/")
+    return resp
+
+
+@app.get("/auth/me")
+def auth_me(user: dict = Depends(require_user)):
+    return {"user": _public_user(user)}
+
+
+# =====================================================================
+# 2.7 会话归档：列表 / 新建 / 改名 / 删除 / 取消息
+# =====================================================================
+# 这些接口全部要求登录，且**每条都过 own_conversation**——
+# 只按 id 查不管归属，是这类功能最常见的越权漏洞（换个 id 就能读别人的对话）。
+class ConversationCreate(BaseModel):
+    title: Optional[str] = None
+
+
+class ConversationRename(BaseModel):
+    title: str
+
+
+@app.get("/conversations")
+def list_conversations(user: dict = Depends(require_user)):
+    return {"items": app_store.list_conversations(user["id"])}
+
+
+@app.post("/conversations")
+def create_conversation(req: ConversationCreate, user: dict = Depends(require_user)):
+    return app_store.create_conversation(user["id"], (req.title or "新对话").strip())
+
+
+@app.get("/conversations/{cid}")
+def get_conversation(cid: str, user: dict = Depends(require_user)):
+    conv = app_store.own_conversation(cid, user["id"])
+    if not conv:
+        raise HTTPException(status_code=404, detail="会话不存在")
+    return {"conversation": conv, "messages": app_store.list_messages(cid)}
+
+
+@app.patch("/conversations/{cid}")
+def rename_conversation(cid: str, req: ConversationRename,
+                        user: dict = Depends(require_user)):
+    if not app_store.rename_conversation(cid, user["id"], (req.title or "").strip()):
+        raise HTTPException(status_code=404, detail="会话不存在")
+    return {"ok": True}
+
+
+@app.delete("/conversations/{cid}")
+def delete_conversation(cid: str, user: dict = Depends(require_user)):
+    if not app_store.delete_conversation(cid, user["id"]):
+        raise HTTPException(status_code=404, detail="会话不存在")
+    return {"ok": True}
+
+
 # =====================================================================
 # 2.8 会话 ID 兜底（修"所有人共用一个 default_session"）
 # =====================================================================
@@ -274,7 +484,7 @@ def _resolve_session_id(req_session_id: Optional[str], request: Request) -> str:
 # =====================================================================
 # 3. 流式对话接口（完全保持原样，未做任何改动）
 # =====================================================================
-@app.post("/chat/stream", dependencies=[Depends(require_api_key)])
+@app.post("/chat/stream", dependencies=[Depends(require_chat_access)])
 async def chat_stream_endpoint(request: ChatRequest, http_request: Request):
     """
     流式接口（SSE）。
@@ -310,8 +520,30 @@ async def chat_stream_endpoint(request: ChatRequest, http_request: Request):
       排满后最多等 `RAG_QUEUE_WAIT` 秒（默认 8），等不到直接回 **429**
       （带 `Retry-After: 5`），而不是让请求无限排队把 P95 拖到不可用。
     """
-    session_id = _resolve_session_id(request.session_id, http_request)
-    user_id = (request.user_id or "").strip()
+    # ---- 身份与会话归属 ----
+    # 登录用户：会话 id 由归档层决定，并**同时作为记忆层的 session_id**——
+    #   两边同一个 id，模型看到的上下文和用户打开历史看到的才是同一段对话。
+    # 程序调用（持 API-Key）：沿用原来的匿名/客户端指纹兜底，不写归档。
+    caller = auth.user_from_request(http_request)
+    conv_id = (request.conversation_id or "").strip()
+    title_hint = ""
+    if caller:
+        if conv_id:
+            if not app_store.own_conversation(conv_id, caller["id"]):
+                # 别人的会话与不存在的会话回同一个 404，不泄漏 id 是否存在
+                raise HTTPException(status_code=404, detail="会话不存在")
+        else:
+            conv_id = app_store.create_conversation(
+                caller["id"], (request.message or "")[:24] or "新对话"
+            )["id"]
+        session_id = conv_id
+        user_id = caller["id"]
+        title_hint = (request.message or "")[:24]
+        app_store.append_message(conv_id, "user", request.message or "")
+    else:
+        session_id = _resolve_session_id(request.session_id, http_request)
+        user_id = (request.user_id or "").strip()
+
     logger.info(
         f"📥 [stream] 收到请求(session={session_id[:8]}"
         f"{', user=' + user_id[:8] if user_id else ''}): {request.message}"
@@ -390,6 +622,7 @@ async def chat_stream_endpoint(request: ChatRequest, http_request: Request):
         # ---- 完整性兜底：模型偶发丢掉原文限定成分（答"布丁"丢"仓鼠"）----
         # 不改写模型已吐出的正文，只在末尾补一句"来自检索原文"的说明。
         # 规则是确定性的（见 answer_guard.py），判错最多多一句原文事实，不会编造。
+        extra = ""      # 先初始化：下面任何异常都不会让这里变成 NameError
         try:
             extra = completeness_supplement("".join(pieces), (meta or {}).get("contexts") or [])
             if extra:
@@ -418,6 +651,19 @@ async def chat_stream_endpoint(request: ChatRequest, http_request: Request):
                 await asyncio.sleep(0.01)
         except Exception as e:  # noqa: BLE001
             logger.warning(f"⚠️ 下发收尾元信息失败: {e}")
+
+        # ---- 归档落库：同样必须在 [DONE] 之前 ----
+        # 落的是"用户实际看到的全文"（pieces + 兜底补充），不是模型原始输出。
+        # 否则下次打开历史会少一句，用户会以为记录被改过。
+        if conv_id:
+            app_store.append_message(
+                conv_id, "assistant", "".join(pieces) + extra,
+                sources=(meta or {}).get("sources"),
+                contexts=(meta or {}).get("contexts"),
+                confidence=(meta or {}).get("confidence"),
+                status=(meta or {}).get("status", ""),
+            )
+            app_store.touch_conversation(conv_id, title_if_new=title_hint)
 
         # ---- 记忆落库：必须在 [DONE] 之前 ----
         # 踩过的坑：一开始放在 [DONE] 之后，结果前端收到 [DONE] 就关连接，
