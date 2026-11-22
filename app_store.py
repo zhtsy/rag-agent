@@ -76,8 +76,19 @@ CREATE TABLE IF NOT EXISTS messages (
     created_at      REAL NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS auth_events (
+    id        INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts        REAL NOT NULL,
+    kind      TEXT NOT NULL,
+    username  TEXT,
+    ip        TEXT,
+    device    TEXT,
+    ua        TEXT
+);
+
 CREATE INDEX IF NOT EXISTS idx_conv_user  ON conversations(user_id, updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_msg_conv   ON messages(conversation_id, id);
+CREATE INDEX IF NOT EXISTS idx_event_id   ON auth_events(id);
 """
 
 
@@ -311,6 +322,61 @@ def list_messages(cid: str, limit: int = 500) -> List[Dict[str, Any]]:
     return out
 
 
+# =====================================================================
+# 鉴权事件（给管理员推送"有人来了"）
+# =====================================================================
+def log_event(kind: str, username: str = "", ip: str = "",
+              device: str = "", ua: str = "") -> int:
+    """记一条注册/登录事件，返回自增 id（0 表示没记上）。
+
+    为什么单独开表、而不是让通知程序去看 `users.last_login`：
+    推送需要一个**单调递增的游标**。时间戳做游标会在同一秒并发时漏事件
+    （`>` 比较直接跳过同值行），也会被客户端时钟漂移影响；
+    AUTOINCREMENT 的 id 天然有序、天然能断点续传。
+
+    失败只返回 0，绝不抛出：记日志失败不该让登录失败。
+    """
+    try:
+        init_db()
+        with _conn() as conn:
+            cur = conn.execute(
+                "INSERT INTO auth_events(ts, kind, username, ip, device, ua) "
+                "VALUES(?,?,?,?,?,?)",
+                (_now(), kind, username or None, ip or None,
+                 device or None, (ua or "")[:300] or None),
+            )
+            return int(cur.lastrowid or 0)
+    except Exception:  # noqa: BLE001
+        return 0
+
+
+def list_events(since_id: int = 0, limit: int = 50) -> List[Dict[str, Any]]:
+    """取 id 大于 since_id 的事件，按 id 升序。本机用它做增量拉取。"""
+    try:
+        init_db()
+        with _conn() as conn:
+            rows = conn.execute(
+                "SELECT id, ts, kind, username, ip, device, ua FROM auth_events "
+                "WHERE id > ? ORDER BY id ASC LIMIT ?",
+                (max(0, int(since_id)), max(1, min(int(limit), 200))),
+            ).fetchall()
+        return [dict(r) for r in rows]
+    except Exception:  # noqa: BLE001
+        return []
+
+
+def latest_event_id() -> int:
+    """当前最大 id。首次启动时用它对齐游标，避免把历史事件当新事件弹一遍。"""
+    try:
+        init_db()
+        with _conn() as conn:
+            row = conn.execute(
+                "SELECT COALESCE(MAX(id), 0) FROM auth_events").fetchone()
+        return int(row[0] or 0)
+    except Exception:  # noqa: BLE001
+        return 0
+
+
 def stats() -> Dict[str, int]:
     """给 /health 用：一眼看出库里有没有东西，而不是只看 status=ok。"""
     try:
@@ -321,6 +387,7 @@ def stats() -> Dict[str, int]:
                 "conversations": conn.execute(
                     "SELECT COUNT(*) FROM conversations").fetchone()[0],
                 "messages": conn.execute("SELECT COUNT(*) FROM messages").fetchone()[0],
+                "events": conn.execute("SELECT COUNT(*) FROM auth_events").fetchone()[0],
             }
     except Exception:  # noqa: BLE001
-        return {"users": 0, "conversations": 0, "messages": 0}
+        return {"users": 0, "conversations": 0, "messages": 0, "events": 0}

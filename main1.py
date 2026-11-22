@@ -339,6 +339,20 @@ def _set_auth_cookie(resp, token: str) -> None:
     )
 
 
+def _record_auth(kind: str, username: str, request: Request) -> None:
+    """记一条鉴权事件，供管理员的通知程序轮询。
+
+    **绝不影响主流程**：app_store.log_event 内部吞掉所有异常，
+    这里再包一层是因为连 `request.headers` 读取都不该让登录失败。
+    """
+    try:
+        ua = request.headers.get("user-agent", "")
+        app_store.log_event(
+            kind, username, auth.client_ip(request), auth.device_of(ua), ua)
+    except Exception:  # noqa: BLE001
+        pass
+
+
 def require_user(request: Request) -> dict:
     """需要登录的接口用这个依赖。401 而不是 403：这是"没认证"，不是"没权限"。"""
     user = auth.user_from_request(request)
@@ -389,6 +403,7 @@ def auth_register(req: RegisterRequest, request: Request):
 
     token, exp = auth.issue_token(row["id"])
     logger.info(f"👤 新用户注册：{username}")
+    _record_auth("register", username, request)
     resp = JSONResponse({"user": _public_user(row), "expires_at": exp})
     _set_auth_cookie(resp, token)
     return resp
@@ -416,12 +431,14 @@ def auth_login(req: LoginRequest, request: Request):
     row = app_store.get_user_by_name(username)
     if not row or not auth.verify_password(req.password or "", row["pwd_hash"]):
         auth.note_failure(key)
+        _record_auth("login_fail", username, request)
         raise HTTPException(status_code=401, detail="用户名或密码错误")
 
     auth.clear_failures(key)
     app_store.touch_login(row["id"])
     token, exp = auth.issue_token(row["id"])
     logger.info(f"🔑 登录成功：{username}")
+    _record_auth("login", username, request)
     resp = JSONResponse({"user": _public_user(row), "expires_at": exp})
     _set_auth_cookie(resp, token)
     return resp
@@ -437,6 +454,23 @@ def auth_logout():
 @app.get("/auth/me")
 def auth_me(user: dict = Depends(require_user)):
     return {"user": _public_user(user)}
+
+
+@app.get("/admin/events")
+def admin_events(since: int = 0, limit: int = 50,
+                 _: None = Depends(require_api_key)):
+    """管理员事件流：新注册 / 登录成功 / 登录失败。
+
+    **必须带 X-API-Key**：8000 对公网开放，不鉴权就等于把"谁在用、从哪个 IP、
+    什么设备"广播出去，比 /health 敏感得多。
+
+    `since` 是游标（上次处理到的 id），配合轮询做增量拉取。
+    额外返回 `latest` 是为了首次启动时对齐——否则会把历史事件当新的全弹一遍。
+    """
+    return {
+        "items": app_store.list_events(since, limit),
+        "latest": app_store.latest_event_id(),
+    }
 
 
 # =====================================================================

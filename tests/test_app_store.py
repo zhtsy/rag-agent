@@ -123,4 +123,4 @@ def test_stats_counts():
     conv = app_store.create_conversation(u["id"])
     app_store.append_message(conv["id"], "user", "x")
     s = app_store.stats()
-    assert s == {"users": 1, "conversations": 1, "messages": 1}
+    assert s == {"users": 1, "conversations": 1, "messages": 1, "events": 0}

@@ -237,3 +237,53 @@ def allow_public_register() -> bool:
     """
     raw = (os.getenv("RAG_ALLOW_REGISTER") or "0").strip().lower()
     return raw not in ("0", "false", "no", "off")
+
+
+def client_ip(request: Any) -> str:
+    """取真实客户端 IP。
+
+    容器化部署下 `request.client.host` 大概率是 docker 网关（172.18.0.1），
+    因为端口映射做了 SNAT。所以优先读 `X-Forwarded-For` / `X-Real-IP`；
+    只有前面没有任何代理时，才回落 `request.client.host`。
+    X-Forwarded-For 是逗号分隔链，第一段才是原始客户端（后面的是各级代理）。
+    """
+    try:
+        headers = getattr(request, "headers", None) or {}
+        for name in ("x-forwarded-for", "x-real-ip"):
+            raw = headers.get(name)
+            if raw:
+                first = str(raw).split(",")[0].strip()
+                if first:
+                    return first
+        client = getattr(request, "client", None)
+        return getattr(client, "host", "") or ""
+    except Exception:  # noqa: BLE001
+        return ""
+
+
+def device_of(ua: str) -> str:
+    """把 UA 归一成一个能一眼看懂的种类。**只用于通知展示，不做任何安全判断。**
+
+    顺序有讲究：微信内置浏览器、iPad 的 UA 里同时含 Android/iPhone 字样，
+    先判具体再判泛型，否则永远归不到正确那一类。
+    """
+    u = (ua or "").lower()
+    if not u:
+        return "未知"
+    if "micromessenger" in u:
+        return "微信"
+    if "ipad" in u:
+        return "iPad"
+    if "iphone" in u or "ipod" in u:
+        return "iPhone"
+    if "android" in u:
+        return "Android"
+    if "windows" in u:
+        return "Windows"
+    if "macintosh" in u or "mac os x" in u:
+        return "Mac"
+    if "linux" in u:
+        return "Linux"
+    if any(t in u for t in ("curl", "python", "httpx", "wget", "go-http")):
+        return "脚本"
+    return "其他"
