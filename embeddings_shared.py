@@ -26,7 +26,9 @@
 行为约定（务必保持，否则会静默降低检索质量）：
 1. **不给 query 加 bge 的 instruction 前缀**。现有向量库是按裸文本建的，
    一旦给 query 加前缀，query 向量与库内向量就不在同一分布上，检索会崩。
-2. 依旧 device="cpu"、normalize_embeddings=True，与原实现逐字一致。
+2. 默认 device="cpu"、normalize_embeddings=True，与原实现逐字一致。只有建库脚本
+   显式设 `RAG_EMBED_DEVICE=cuda` 才走 GPU；**默认值不能改**，云端没有显卡，
+   改默认会让线上起不来。
 """
 
 import os
@@ -70,7 +72,10 @@ def get_encoder(model_name: str = DEFAULT_MODEL):
             # 延迟导入，让 import 本模块保持轻量
             from sentence_transformers import SentenceTransformer
 
-            enc = SentenceTransformer(model_name, device="cpu")
+            # 建库时可用 RAG_EMBED_DEVICE=cuda 借本机显卡，默认仍为 cpu。
+            # 缺省不设 = cpu，是线上（无显卡）能启动的唯一保证。
+            device = (os.getenv("RAG_EMBED_DEVICE") or "cpu").strip()
+            enc = SentenceTransformer(model_name, device=device)
             _encoders[model_name] = enc
     return enc
 
