@@ -1978,7 +1978,142 @@ clone 之后要么跑 12.4.2 的建库命令，要么只有 demo 库可用——
 
 ---
 
+### 12.12 账号体系与对话归档（前端 2.0）
+
+原来只有一个 Streamlit 页面，谁打开都是同一副面孔，对话也只活在服务端记忆里。
+这次补上**登录 / 注册 / 按用户隔离的对话归档**，并把前端换成零依赖的单页。
+
+#### 为什么另起一张 SQLite，不复用 `chat_turns`
+
+表面上看 `chat_turns` 已经有 question/answer/sources/status，直接查它就能出历史。
+但两者的需求正好相反：
+
+| | `chat_turns`（记忆层） | `messages`（归档层） |
+|---|---|---|
+| 生命周期 | `purge_old_turns(days=30)` 会清 | 用户不删就永久保留 |
+| 读的人 | 模型（重建最近 N 轮上下文） | 人（打开会话回放） |
+| 依赖 | MySQL（Docker 里那套） | SQLite（clone 下来就能跑） |
+
+合并成一张表是错的：一清理就把用户历史删了。反过来把归档塞进 MySQL，
+clone 项目的人没有 MySQL 就看不到任何历史——而"登录后能看到自己的对话"正是这次要交付的东西。
+**代价是同一轮问答存两份**，接受它：记忆层可以丢，归档层不能丢。
+
+#### 三张表
+
+```sql
+users(id, username UNIQUE, email, pwd_hash, created_at, last_login)
+conversations(id, user_id, title, created_at, updated_at, msg_count)
+messages(id, conversation_id, role, content, sources, contexts, confidence, status, created_at)
+```
+
+SQLite 落在 `app.db`（`.gitignore` 已排除），WAL 模式 + `busy_timeout` 是并发下的必需品：
+流式响应是长事务场景，默认 rollback journal 会让读请求在写事务期间直接 `database is locked`。
+
+#### 密码与令牌（`auth.py`，零第三方依赖）
+
+- **密码**：`scrypt$n$r$p$salt$hash`，`hashlib.scrypt(n=2**14, r=8, p=1)`。
+  选 scrypt 而不是 pbkdf2，是因为它**内存硬**，攻击者用 GPU 批量猜的成本高一个量级。
+  每次验证约 50~100 ms——登录不是热路径，这个代价可以接受。
+- **令牌**：`v1.<uid>.<exp>.<sig>`，HMAC-SHA256 签名，无状态。
+  **先验签再读 exp**：反过来的话攻击者改 exp 就能延长有效期。
+  代价是没法单条吊销，只能改 secret 全量失效（单机自用场景够用）。
+- **Cookie**：`HttpOnly` + `SameSite=Lax`。JS 读不到 → 一次 XSS 也偷不走；
+  跨站发起的 POST 不带 Cookie → 挡掉大部分 CSRF。**上线 HTTPS 时必须补 `secure=True`**。
+- **登录限流**：同 IP+用户名 5 次失败锁 60 秒。进程内计数，多副本不精确，
+  真要做准得上 Redis——那超出这个项目的范围。
+
+#### 鉴权是双通道的，这是刻意的
+
+```python
+def require_chat_access(request):
+    if auth.user_from_request(request):   # 浏览器：Cookie
+        return
+    require_api_key(request)              # 脚本/评测/MCP：X-API-Key
+```
+
+- 只允许登录 → `eval_system.py`、MCP、批处理全挂（它们只有 API-Key），67 条回归当场失效。
+- 只留 API-Key → 浏览器就得把密钥写进前端 JS，等于公开。
+
+**人走 Cookie，机器走 Key**。新增的 `/conversations*` 则**只认登录**：
+API-Key 的含义是"这台机器可以调"，不是"这个人是这个账号"。
+
+#### 越权防护
+
+`/conversations/{cid}` 每次都过 `own_conversation(cid, user_id)`，
+**不存在的会话与别人的会话返回同一个 404**——否则状态码本身就成了
+"这个 id 是否存在"的探测接口。`tests/test_app_store.py` 里有专门的越权用例。
+
+#### 接口
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| POST | `/auth/register` | 注册即登录（直接下发 Cookie） |
+| POST | `/auth/login` | 失败统一回"用户名或密码错误"，不区分是哪一种 |
+| POST | `/auth/logout` | 清 Cookie |
+| GET | `/auth/me` | 当前用户；401 表示未登录 |
+| GET | `/conversations` | 我的会话列表（按更新时间倒序） |
+| POST | `/conversations` | 新建 |
+| GET | `/conversations/{cid}` | 会话 + 全部消息 |
+| PATCH | `/conversations/{cid}` | 改名 |
+| DELETE | `/conversations/{cid}` | 删除（连同消息） |
+| POST | `/chat/stream` | 新增可选字段 `conversation_id`；登录态下自动落归档 |
+
+#### 前端（`web/`，挂在 `/ui`）
+
+原生 HTML/CSS/JS，无构建、无 CDN——断网也照样能用，这是刻意的：
+引一个 marked.js 就多一个"CDN 挂了白屏"的失败面，而这里只需要标题/列表/粗体/代码/链接五种语法。
+
+几个决定：
+
+- **`/` 仍然返回 JSON**，前端挂 `/ui`。把 `/` 换成页面等于静默改变一个已有接口的语义
+  （探活脚本和部分调用方依赖它），多一个前缀的成本远小于这个风险；`/app` 只是跳转。
+- **流式用 `fetch` + `ReadableStream` 手解 SSE**：`EventSource` 不能带请求头、也不能发 POST 体。
+- **深链 `#/c/<id>`**：刷新停在原会话，链接也能直接发人（仍受归属校验保护）。
+- **来源与依据**：回答下方给状态徽章（五态）、相关性条、法条 chip，
+  「查看 N 段原文依据」展开的就是存进 `contexts` 的原始块。
+
+#### 跑起来
+
+```bash
+uvicorn main1:app --host 127.0.0.1 --port 8020
+# 浏览器打开 http://127.0.0.1:8020/ui/   （或 /app）
+# 想让 Windows 宿主直接访问 WSL 里的服务：--host 0.0.0.0，再访问 WSL 的 IP
+```
+
+首次访问会引导注册；`app.db` 与 `.auth_secret` 都是本地数据，不进仓库。
+
+#### 已知边界
+
+- **归档写入失败不会让问答失败**：`append_message` 内部吞掉异常只留日志。
+  这是有意的（回答已经流给用户了，落库失败不该变成 500），代价是"库坏了没人察觉"——
+  所以 `/health.accounts` 暴露三个计数，涨不涨就是判据。
+- **进程内限流**在多变体部署下会各算各的，只能挡住脚本爆破，挡不住分布式撞库。
+- **没做邮箱验证与找回密码**：账号只用于"区分谁的历史"，不是身份认证系统。
+
+---
+
 ## 13. 更新记录
+
+### 2026-11-22　账号体系 + 对话归档 + 前端 2.0
+
+- **新增 `app_store.py`**（SQLite）：users / conversations / messages 三表，WAL + busy_timeout。
+  没有复用 `chat_turns`——那张表会被 `purge_old_turns(30天)` 清掉，当归档用等于"用户历史
+  会被系统悄悄删"。两份存储的取舍写在 12.12 开头。
+- **新增 `auth.py`**：scrypt 密码哈希 + HMAC 无状态令牌 + 登录限流，全部标准库实现。
+  令牌格式 `v1.<uid>.<exp>.<sig>`，**先验签再读 exp**（顺序错了等于让人改过期时间）。
+- **鉴权改成双通道**：`require_chat_access` = 登录 Cookie 或 `X-API-Key`。
+  这一条是为了保 67 条评测不被登录墙挡住——人的浏览器走 Cookie，脚本走 Key。
+  `/conversations*` 则只认登录，且每次都校验归属（别人的会话与不存在的会话回同一个 404）。
+- **`/chat/stream` 落归档**：登录态下 user/assistant 两条消息在 `[DONE]` 之前写入
+  （`[DONE]` 之后写会因客户端断开而被取消，这个坑 12.4 已经踩过一次）。
+  落的正文 = 流出的正文 + 完整性兜底那句，保证"下次打开历史的和当时看到的一致"。
+- **前端换成 `web/` 单页**：原生 HTML/CSS/JS，无构建、无 CDN。挂 `/ui`，`/` 仍返回 JSON。
+  含会话侧栏（按今天/昨天分组）、流式打字、状态徽章（五态）、相关性条、法条 chip、
+  原文依据折叠、改名/删除、`#/c/<id>` 深链。
+- **测试**：新增 `tests/test_auth.py`（22 条）、`tests/test_app_store.py`（15 条）。
+  `tests/test_auth_boundary.py` 改成同时识别装饰器与函数签名两种挂法——
+  它原来只认装饰器，新接口用 `Depends` 写在参数上时会误报，护栏退化成噪音。
+- **口径**：全量 pytest **612 passed / 1 skipped**（36 秒）。
 
 ### 2026-11-16　默认口径切到 31,856 块 + 53 项改动第一次落库
 
