@@ -698,6 +698,15 @@ async function checkHealth() {
 
 /* ---------------- 启动 ---------------- */
 (async function init() {
+  // 公开注册可能被服务端关掉（RAG_ALLOW_REGISTER=0）：先问一次再决定要不要显示入口。
+  // 拿不到配置就按默认显示，提交时后端仍会 403 拦住，不会真的放开。
+  try {
+    const cfg = await fetch('/auth/config').then((r) => (r.ok ? r.json() : null));
+    if (cfg && cfg.allow_register === false) {
+      document.querySelectorAll('[data-mode="register"]').forEach((el) => el.classList.add('is-hidden'));
+    }
+  } catch { /* 忽略：不影响登录 */ }
+
   bindSamples();
   try {
     const data = await api('/auth/me');

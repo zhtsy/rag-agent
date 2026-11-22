@@ -224,3 +224,16 @@ def note_failure(key: str) -> None:
 
 def clear_failures(key: str) -> None:
     _FAILS.pop(key, None)
+
+
+def allow_public_register() -> bool:
+    """公开注册开关，**默认关闭**。
+
+    默认关闭是有意的：8000 端口对公网开放，忘记配置就等于把注册权交给陌生人，
+    他们能消耗 LLM 额度、往库里写数据。本地开发要注册就显式设
+    `RAG_ALLOW_REGISTER=1`。
+
+    放在这个模块而不是 main1：这里是纯逻辑，测试不必加载嵌入模型。
+    """
+    raw = (os.getenv("RAG_ALLOW_REGISTER") or "0").strip().lower()
+    return raw not in ("0", "false", "no", "off")

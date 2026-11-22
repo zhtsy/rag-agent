@@ -109,3 +109,27 @@ def test_window_resets_counter():
     auth._FAILS[key][1] = time.time() - auth._FAIL_WINDOW - 1
     auth._FAILS[key][2] = 0
     assert auth.login_blocked(key) == 0
+
+
+# ---------------- 公开注册开关 ----------------
+def test_register_closed_by_default(monkeypatch):
+    """默认关闭：公网部署忘了配置，不能变成开放注册。
+
+    这是"默认值决定安全性"的典型场景——8000 端口对外，
+    默认开着等于把注册权交给陌生人。
+    """
+    monkeypatch.delenv("RAG_ALLOW_REGISTER", raising=False)
+    assert auth.allow_public_register() is False
+
+
+@pytest.mark.parametrize("value", ["1", "true", "yes", "on"])
+def test_register_can_be_enabled(monkeypatch, value):
+    monkeypatch.setenv("RAG_ALLOW_REGISTER", value)
+    assert auth.allow_public_register() is True
+
+
+@pytest.mark.parametrize("value", ["0", "false", "no", "off", "FALSE", " Off "])
+def test_register_switch_off_values(monkeypatch, value):
+    """大小写与空白都要认——.env 里写成 False 也必须当关闭处理。"""
+    monkeypatch.setenv("RAG_ALLOW_REGISTER", value)
+    assert auth.allow_public_register() is False

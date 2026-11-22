@@ -351,6 +351,17 @@ def require_user(request: Request) -> dict:
     return user
 
 
+def allow_public_register() -> bool:
+    """转发到 auth 模块：注册开关与口令/令牌同属鉴权策略，且那里测试不用加载模型。"""
+    return auth.allow_public_register()
+
+
+@app.get("/auth/config")
+def auth_config():
+    """前端据此决定要不要显示注册入口。不含任何账号信息，匿名可访问。"""
+    return {"allow_register": allow_public_register()}
+
+
 @app.post("/auth/register")
 def auth_register(req: RegisterRequest, request: Request):
     """注册即登录：注册成功直接下发 Cookie，省掉一次跳转。
@@ -358,6 +369,12 @@ def auth_register(req: RegisterRequest, request: Request):
     注册接口**不做登录限流**（还没账号），但要防重名刷库：
     重名由数据库 UNIQUE 约束兜底，并发下也不会插进两个同名用户。
     """
+    if not allow_public_register():
+        raise HTTPException(
+            status_code=403,
+            detail="本站已关闭公开注册，请联系管理员开通账号",
+        )
+
     username = (req.username or "").strip()
     err = auth.validate_credentials(username, req.password or "")
     if err:
