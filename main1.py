@@ -47,6 +47,7 @@ from api_auth import api_key as _configured_api_key
 from answer_guard import completeness_supplement
 import evidence as _evidence   # 检索字符串 → 结构化证据；/search 与 MCP 共用，零依赖可单测
 import obs as _obs   # 请求级 request_id + 分阶段耗时，收尾打一行 JSON（见 obs.py）
+import law_graph as _law_graph             # 条文引用图；/health 只读它的状态
 import retrieval_cache as _retrieval_cache   # 检索结果缓存；/health 暴露它的统计
 import auth                      # 密码哈希 / 令牌签名 / 登录限流（纯标准库，见 auth.py）
 import app_store                 # 用户与对话归档（SQLite，见 app_store.py 的"为什么另起一张库"）
@@ -240,6 +241,10 @@ def health():
         # 归档层是否真的在写。只报 status=ok 看不出"登录能用但历史一条没存"，
         # 这三个计数涨不涨，是那个问题的直接判据。
         "accounts": app_store.stats(),
+        # 条文引用图（只读缓存状态，不会触发新查询）。loaded=false 意味着所有
+        # 「某条被谁援引」类问题都拿不到图证据，而问答照常返回 200 ——
+        # 这是一类**看起来一切正常**的静默故障，只能靠这个字段看出来。
+        "law_graph": _law_graph.stats(),
     }
 
 

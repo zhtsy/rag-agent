@@ -39,7 +39,7 @@ from FlagEmbedding import FlagReranker
 from bm25_retriever import bm25_retriever
 from embeddings_shared import get_embeddings
 from langchain_classic.retrievers import EnsembleRetriever
-from graph_retriever import entity_facts, search_knowledge_graph
+import law_graph as _lg
 from kb_paths import resolve as resolve_chroma_dir
 from index_meta import check_signature
 from loguru import logger
@@ -63,10 +63,6 @@ import retrieval_policy as _rp
 import law_scope as _law_scope
 # 检索结果缓存：缓的是"检索到的证据"，不是答案——见 retrieval_cache.py 顶部
 import retrieval_cache as _retrieval_cache
-
-# 路由的规则快速路径。同样零依赖、可进 CI（tests/test_retrieval_router.py）。
-# 它替代的是"每次检索都发一次 DeepSeek 判意图"——实测那一步 1130ms。
-import retrieval_router as _router
 
 # 记忆：持久化层（MySQL）+ 纯函数（截断/摘要渲染）。
 # 两个模块都不 import 本文件，所以能被 pytest 直接测（见 tests/test_memory_*.py）。
@@ -176,9 +172,14 @@ KB_INFO = {"dir": os.path.basename(_CHROMA_DIR.rstrip(os.sep)),
            "entity_meta": ENTITY_FILTER_SUPPORTED,
            "embed": _EMBED_CHECK["current"],
            "embed_status": _EMBED_CHECK["status"],
-           "rerank_window": _rp.rerank_window(_KB_CHUNKS,
-                                              os.environ.get("RAG_RERANK_CANDIDATES"),
-                                              _rp.DEFAULT_RERANK_CANDIDATES)}
+           # 0 = 不截断（重排窗口 = 本次实际候选数）。
+           #
+           # 这里原来上报的是 `rerank_window(_KB_CHUNKS, ...)` 算出来的一个数
+           # （31,856 块时是 24）。但候选数由 k 决定、**与索引规模无关** ——
+           # 同一个库，一次查询永远只有 BM25 的 10 + 向量的 10 个候选，
+           # 那个 24 从来没生效过。上报它只会让人以为"窗口在起保护作用"。
+           # 详见 retrieval_policy.rerank_budget 的说明。
+           "rerank_window": 0}
 retriever = vectorstore.as_retriever(search_kwargs={"k": 10})
 
 # 强制重排模型在 CPU 上运行，把宝贵的显存全留给 Qwen
@@ -191,13 +192,10 @@ logger.info(f"🔍 重排模型: {RERANKER_PATH}")
 reranker = FlagReranker(RERANKER_PATH, use_fp16=False)
 
 
-# ========== 3.1 实体词表 & 会话级实体记忆（防串台的基础设施） ==========
-KNOWN_ENTITIES = [
-    "小智", "小明", "小王", "小赵", "小李", "小张", "小刘", "小陈", "小周", "小吴",
-    "加里奥", "泰拉瑞亚", "川菜", "粤菜", "北京烤鸭", "东北美食", "江浙美食", "西北美食",
-    "番茄炒蛋", "青椒炒蛋", "黄瓜炒鸡蛋", "韭菜炒鸡蛋", "木须肉", "洋葱炒蛋",
-    "鸡蛋羹", "虎皮鸡蛋", "苦瓜炒蛋", "荷包蛋烧豆腐",
-]
+# ========== 3.1 会话级实体记忆（防串台的基础设施） ==========
+# 记忆的内容是【上一轮点名的法】：优先「法名+条号」，没有条号就记法名。
+# 原来这里是一张 29 条 demo 实体词表（小智 / 加里奥 / 番茄炒蛋），法律问句永远
+# 抽不到，等于实体记忆恒空、「它」「这个」永远替换不进去 —— 2026-11-25 换掉。
 
 # 指代词表：用于判断"这一轮是不是在追问上一轮的实体"
 # 注意：不收 "该"/"其"——它们会命中"应该""其他""其实"等常用词，造成无辜强制检索
@@ -234,7 +232,7 @@ def _push_token(thread_id: str, text: str) -> None:
         pass
 
 # 只有检索类工具才需要 original_query
-SEARCH_TOOLS = {"search_knowledge_base", "search_knowledge_graph"}
+SEARCH_TOOLS = {"search_knowledge_base"}
 
 # ---- 模型 provider（提前到这里：下面的历史窗口要按它取值）----
 #   deepseek（默认）：全部走 DeepSeek API。云端就是这一档，与迁移前行为一致。
@@ -263,11 +261,37 @@ HYDRATE_TURNS = HISTORY_TURNS
 SUMMARY_MAX_CHARS = 600
 
 
-def _extract_entities(text: str) -> List[str]:
-    """从任意文本中抽出知识库里的已知实体（按词表顺序，天然去重）"""
+# 书名号里的法名（没有条号时用）：「《商标法》是怎么规定的」→ 商标法
+_LAW_NAME_RE = re.compile(
+    r"[《]([\u4e00-\u9fa5]{2,20}?(?:法典|法|典|条例|细则|办法|规定|规则|解释))[》]"
+)
+
+
+def _law_entities_in(text: str) -> List[str]:
+    """抽出这一轮「点名的法」，用于会话实体记忆与代词兜底改写。
+
+    两条路，先准后宽：
+      ① 法名 + 条号（`law_graph.refs_in`）→ 返回「商标法第十五条」这种可读串，
+         追问「它有哪些例外」时替换进去，检索直接落到那一条；
+      ② 只有书名号法名、没有条号 → 只记法名，供「这部法」「它」这类追问替换。
+
+    为什么换掉原来那张 29 条硬编码词表：那批是 demo 语料的人名与菜名
+    （小智 / 加里奥 / 番茄炒蛋），法律问句里一个都不会出现 ——
+    等于实体记忆永远为空，2015 行那段「确定性兜底改写」从来没被触发过。
+    """
     if not text:
         return []
-    return [e for e in KNOWN_ENTITIES if e in text]
+    refs = _lg.refs_in(text)
+    if refs:
+        return [f"{_lg.short_law(r.law or r.raw_law)}{r.no}" for r in refs]
+    out: List[str] = []
+    seen = set()
+    for m in _LAW_NAME_RE.finditer(text):
+        stem = _law_scope.law_stem(m.group(1))
+        if stem and stem not in seen:
+            seen.add(stem)
+            out.append(stem)
+    return out
 
 
 def _has_pronoun(text: str) -> bool:
@@ -285,6 +309,30 @@ def _rewrite_pronoun(text: str, entities: List[str]) -> str:
     return _PRONOUN_RE.sub(entities[0], text, count=1)
 
 
+# 改写只在「问句自己说不清对象」时才有信息量：代词（它/这个）、省略式追问（那呢）、
+# 极短问句。其余情况下模型改写只是把「是怎么规定的」换个说法，而**换法每次不同**，
+# 检索到的块就跟着每次不同。实测（2026-11-25，同一题连打两次）：
+#   改写 A「商标法 集体商标 是指什么」 / 改写 B「商标法 集体商标 定义」
+#   → top-k 里第 3、4 块直接换了两条条文（0.9918→0.9941），答案跟着变。
+# 加上模型侧本身不保证逐字复现（DeepSeek 实测 2/3），这就是"同一题 1 过 2 挂"的
+# 第二个来源，且它比 seed 更隐蔽：seed 只影响生成，改写影响的是**证据**。
+# 所以自包含问句直接用原话检索 —— 既确定，也省掉一次无谓的语义漂移。
+_ELIDE_START_RE = re.compile(r"^(那|那么|还有|再|另外|同样|它|他|她|该|此|这)")
+
+
+def _query_is_self_contained(text: str) -> bool:
+    """问句自己说清了对象，不依赖历史消解指代。"""
+    t = (text or "").strip()
+    if len(t) < 8 or _has_pronoun(t):
+        return False
+    return not _ELIDE_START_RE.match(t)
+
+
+def _rewrite_mode() -> str:
+    """RAG_QUERY_REWRITE: auto（默认，自包含问句用原话）/ llm（一律用模型改写）/ raw（一律原话）"""
+    return (os.getenv("RAG_QUERY_REWRITE") or "auto").strip().lower()
+
+
 def _remember_entities(thread_id: str, entities: List[str]) -> None:
     """更新会话实体记忆——内存一份（快），MySQL 一份（重启后还在）。
 
@@ -298,94 +346,15 @@ def _remember_entities(thread_id: str, entities: List[str]) -> None:
 
 
 # ========== 4. 定义工具（只保留两个核心检索工具） ==========
-def is_relation_query(query: str) -> bool:
-    """用 DeepSeek 判断用户问题是否属于关系类查询（需要走图谱）"""
-    prompt = f"""你是一个意图分类助手。请判断以下问题是否涉及"实体之间的关系"。
-关系类查询包括：
-- 谁住在哪个省/城市
-- A和B是什么关系
-- 某物是谁制造的
-- 某人的宠物/家人/同事是什么
-- 某物由什么材料制成
-- 某人属于哪个组织/团队
-- 某人在哪里工作
-- 某人和某人有什么共同点
-
-普通查询包括：
-- 某人喜欢什么（属性查询，不是关系）
-- 某物的特点是什么
-- 某道菜怎么做
-- 某游戏有什么玩法
-
-请只回答"是"或"否"，不要解释。
-问题：{query}"""
-
-    try:
-        response = cloud_llm.invoke([HumanMessage(content=prompt)])
-        result = "是" in response.content.strip()
-        logger.info(f"🧠 DeepSeek 意图判断: {response.content.strip()} → {'走图谱' if result else '走向量'}")
-        return result
-    except Exception as e:
-        logger.warning(f"⚠️ DeepSeek 不可用 ({e})，回退到关键词匹配")
-        keywords = ["省", "属于", "关系", "制造者", "来源", "谁和谁", "共同点", "位于", "养", "工作", "由什么制成"]
-        return any(kw in query for kw in keywords)
-
-
-def _should_route_graph(query: str, entities: List[str]) -> bool:
-    """这条 query 是否该转给图谱检索。
-
-    两段式：规则先判明显的，判不了才问模型。
-
-    为什么不再无条件问模型
-    ──────────────────────
-    `is_relation_query` 是一次完整的 DeepSeek 往返。backend 日志实测
-    （2026-11-06 08:51:47.369 → 08:51:48.499）单次 **1130ms**，
-    而"小陈住在哪个省"这种句子一条正则就能判。
-
-    省这笔钱的前提是规则足够准：**误判要赔一次图谱往返（1723ms）+ 一次降级**，
-    比省下的更多。所以规则只在高置信度的句式上命中，判不了一律回退模型——
-    漏判只是回到原路径，不花钱也不出错。
-
-    启用条件还有一条：只在恰好一个实体时用规则（见 retrieval_router.can_use_rules）。
-    没有实体时"哪个省"根本不成立，而"谁养了猫"这类聚合题恰恰要交给模型判断。
-    """
-    rule_hit, reason, need_llm = _router.decide(query, entities)
-    if rule_hit:
-        # 打了这一行，就能从日志区分"这次省了 1130ms"还是"还是问了模型"
-        logger.info(f"⚡ 路由规则命中 {reason}，跳过模型意图判断")
-        return True
-    if not need_llm:
-        return False
-
-    hit = is_relation_query(query)
-    logger.info(f"⚡ 规则未命中（{reason}），回退模型判断 → {'图谱' if hit else '向量'}")
-    return hit
-
-
 # 「《专利法》第三十六条」「劳动合同法第23条」这类引用型问句。
 # 后缀里必须带「典」：民法典不以「法」结尾，只写 (法|条例|…) 时
 # 「民法典第577条」整句匹配不上（实测踩过）。
-_ARTICLE_REF_RE = re.compile(
-    r"[《]?([\u4e00-\u9fa5]{2,16}?(?:法典|法|典|条例|办法|规定|解释))[》]?\s*"
-    r"第\s*([〇零一二三四五六七八九十百千两\d]+)\s*条"
-)
-
-
-def _int2cn(n: int) -> str:
-    d = "零一二三四五六七八九"
-    if n < 10:
-        return d[n]
-    if n < 20:
-        return "十" + (d[n % 10] if n % 10 else "")
-    out = ""
-    for unit, val in (("千", 1000), ("百", 100), ("十", 10), ("", 1)):
-        q = n // val
-        if q:
-            out += d[q] + unit
-        elif out and n % val:
-            out += "零"
-        n %= val
-    return out.replace("零零", "零").rstrip("零")
+#
+# 正则本体已搬到 law_graph（那里要用同一套规则去解析跨法引用边的 raw 文本），
+# 这里保留同名别名，是因为 tests/test_article_lookup.py 和外部脚本都按
+# `rag_agent._ARTICLE_REF_RE` / `_int2cn` 取值 —— 两个模块各写一份迟早会分叉。
+_ARTICLE_REF_RE = _lg.ARTICLE_REF_RE
+_int2cn = _lg.int2cn
 
 
 _SOURCE_FILES_CACHE: Optional[List[str]] = None
@@ -399,6 +368,21 @@ def _no_table_mode() -> bool:
         "true",
         "yes",
         "on",
+    )
+
+
+def _law_graph_on() -> bool:
+    """RAG_LAW_GRAPH=0 时关掉条文引用图（仅消融实验用，线上默认开）。
+
+    有它才能回答"这些分数是哪来的"：同一批图谱题，开与关的差值
+    就是引用图的净贡献。没有开关就只能靠"看着像有用"下结论 ——
+    表格消融（RAG_NO_TABLE）已经证明过，这种判断经常是反的。
+    """
+    return os.environ.get("RAG_LAW_GRAPH", "1").strip().lower() not in (
+        "0",
+        "false",
+        "no",
+        "off",
     )
 
 
@@ -458,6 +442,162 @@ def _all_source_files() -> List[str]:
     return _SOURCE_FILES_CACHE
 
 
+def _order_article_chunks(docs: List[Document], needle: str) -> List[Document]:
+    """把同一条的多个分片按"条首在前"排好。
+
+    建库时超长条文会被切成 2~4 块，chroma 的 id 是随机 UUID，
+    `get` 返回顺序与原文顺序无关 —— 实测《商标法》第十五条取回来
+    第一块是「（三）…（七）」、第二块才是「第十五条 下列标志…（一）（二）」。
+    顺序一乱，模型拿到的条文就是中间被掏空的，答案会漏项。
+    分片本身没有序号可以排序（元数据里没有 chunk_index），
+    所以只能靠内容判据：正文以「第X条」开头的那块=条首，排最前；
+    其余保持 `get` 返回的相对顺序（它们之间没有可靠顺序可用）。
+    """
+    def _body(d: Document) -> str:
+        # page_content 形如「法名 > 章 > 第十五条\n第十五条 下列标志…」，
+        # 而 metadata 的 heading_path 只到**章**级（不含条号），所以剥掉它之后
+        # 还留着一层「> 第十五条」。这一层也必须剥掉 —— 否则每个分片都"以条号开头"，
+        # 排序判据对全部候选都成立，等于没排（实测第一次就这么白改了）。
+        # 剥完再看正文是不是又以「第十五条」开头：是 → 这就是条首那块。
+        t = d.page_content or ""
+        hp = (d.metadata or {}).get("heading_path") or ""
+        if hp and t.startswith(hp):
+            t = t[len(hp):]
+        t = t.lstrip()
+        if t.startswith(">"):
+            t = t.lstrip(">").lstrip()
+        if t.startswith(needle):
+            t = t[len(needle):].lstrip()
+        return t
+
+    return sorted(
+        docs,
+        key=lambda d: 0 if _body(d).startswith(needle) else 1,
+    )
+
+
+# ============ 影子抄本去重（2026-11-25） ============
+# 背景：同一部法往往有 md（人工整理、带「法名 > 章 > 条」路径）和 PDF（按页解析、
+# 条号裸奔、页尾容易粘上下一节标题）两份抄本。建库时给 PDF 那份打了 shadow=1，
+# 检索侧原来只减 0.05 分 —— 只够在同分时排后面，**拦不住两份同时进 top-5**：
+# 实测 D007《刑法》第三百五十七条，md 版 0.9935 排第 1、pdf 版 0.9389 排第 2，
+# 同一段正文占了 5 个名额里的 2 个，而 pdf 那一块尾巴上还粘着
+# 「第八节 组织、强迫、引诱、容留、介绍卖淫罪第三百五十八条」。
+# 所以改成硬去重：同一条内容 md 有，PDF 那份就不进候选。
+#
+# 两个判据，先准后宽：
+#   ① **(法名, 条号) 相同** —— 最可靠，但只覆盖能抽到条号的块。
+#      实测影子块里 76% 抽不到条号（PDF 按页切，一块常常是条文的中段，
+#      article 元数据只有 506/2130 块有），所以必须有第二道。
+#   ② **同法名内 3-gram 覆盖率 ≥ 0.85** —— 覆盖"从页中间切出来"的那些。
+#      覆盖率是「pdf 块的 gram 有多少比例被某个 md 块包含」，不是相互相似度：
+#      pdf 块是 md 条文的子段时，相互相似度只有 0.5~0.7，但覆盖率能到 0.95。
+#
+# 三条保护，缺一条就会误删证据：
+#   · 只在**同一部法**内比较 —— 「第十条」到处都是，跨法比较等于随机吞块；
+#   · 候选里**一块 md 都没有**时一块都不删（整部法只有扫描件的情形）；
+#   · gram 少于 25 个（约 27 字）的短块不走内容判据，太短会偶然高覆盖。
+#
+# 放在 rerank **之前**：省掉这些块的打分，也把 top-5 名额让给别的条文。
+# 关掉请设 `RAG_SHADOW_DEDUP_RATIO=1.1`（>1 即停用）。
+# 注意别设 0：`or 0.85` 会把 0 当成"没配"，反而回落到默认值 —— 而且阈值 0
+# 等于"任何覆盖率都算重复"，会把所有影子块删光。要关只有 >1 这一种写法。
+_SHADOW_DEDUP_RATIO = float(os.environ.get("RAG_SHADOW_DEDUP_RATIO", "0.85") or 0.85)
+_DATE_HASH_RE = re.compile(r"\d{8}[0-9a-f]{12,}$")
+_ART_HEAD_RE = re.compile(
+    r"第[〇零一二三四五六七八九十百千两\d]{1,12}条(?:之[〇零一二三四五六七八九十]{1,3})?"
+)
+
+
+def _law_key(name: str) -> str:
+    """把「中华人民共和国刑法_20201226_ff8081….pdf」和「刑法.md」归一到同一个键。"""
+    s = _law_scope.law_stem(name)          # 去扩展名、去「中华人民共和国」
+    s = _DATE_HASH_RE.sub("", s)           # 去建库时加的日期+哈希尾巴
+    s = re.sub(r"[0-9a-f]{12,}$", "", s)   # 少数文件只有哈希没有日期
+    return s.strip()
+
+
+def _article_no_of(doc) -> str:
+    """块的条号：优先元数据，其次正文前 120 字（PDF 多数只能走后一条）。"""
+    md = doc.metadata or {}
+    no = md.get("article")
+    if no:
+        return _lg.norm_article(str(no))
+    text = doc.page_content or ""
+    hp = md.get("heading_path") or ""
+    if hp and text.startswith(hp):
+        text = text[len(hp):]
+    m = _ART_HEAD_RE.search(text[:120])
+    return _lg.norm_article(m.group(0)) if m else ""
+
+
+def _char_grams(text: str) -> set:
+    """去空白标点后的 3-gram 集合。中文在 \\w 里，所以 \\W 正好是标点与空白。"""
+    t = re.sub(r"[\s\W_]+", "", text or "")
+    if len(t) < 3:
+        return {t} if t else set()
+    return {t[i:i + 3] for i in range(len(t) - 2)}
+
+
+def _dedup_shadow_docs(docs: List[Document]) -> List[Document]:
+    """同一部法里 PDF 抄本的内容已被 md 覆盖时，丢掉 PDF 那份。"""
+    if not docs or _SHADOW_DEDUP_RATIO > 1:
+        return docs
+
+    md_side = [d for d in docs if not (d.metadata or {}).get("shadow")]
+    if not md_side:
+        # 候选里一块 md 都没有 —— 比如问的这部法只有扫描件，PDF 是唯一证据。
+        # 这时候删任何一块都等于制造"检索落空"。
+        return docs
+
+    md_keys = set()
+    md_grams: Dict[str, List[set]] = {}
+    for d in md_side:
+        k = _law_key((d.metadata or {}).get("source_file") or "")
+        if not k:
+            continue
+        no = _article_no_of(d)
+        if no:
+            md_keys.add((k, no))
+        md_grams.setdefault(k, []).append(_char_grams(d.page_content or ""))
+
+    kept: List[Document] = []
+    by_article = 0
+    by_text = 0
+    for d in docs:
+        if not (d.metadata or {}).get("shadow"):
+            kept.append(d)
+            continue
+        k = _law_key((d.metadata or {}).get("source_file") or "")
+        if not k:
+            kept.append(d)
+            continue
+
+        no = _article_no_of(d)
+        if no and (k, no) in md_keys:
+            by_article += 1
+            continue
+
+        g = _char_grams(d.page_content or "")
+        if len(g) >= 25:
+            for mg in md_grams.get(k, ()):
+                if mg and len(g & mg) / float(len(g)) >= _SHADOW_DEDUP_RATIO:
+                    by_text += 1
+                    break
+            else:
+                kept.append(d)
+            continue
+        kept.append(d)
+
+    dropped = by_article + by_text
+    if dropped:
+        logger.info(
+            f"🧹 影子抄本硬去重: 删 {dropped} 块（按条号 {by_article} / 按内容覆盖 {by_text}），"
+            f"候选 {len(docs)} → {len(kept)}"
+        )
+    return kept
+
+
 def _exact_article_lookup(query: str) -> List[Document]:
     """用户点名「《某法》第 N 条」时，按元数据把那一块直接取出来。
 
@@ -477,18 +617,54 @@ def _exact_article_lookup(query: str) -> List[Document]:
     if not m:
         return []
     law = m.group(1).strip()
-    num = m.group(2).strip()
-    cn = num if not num.isdigit() else _int2cn(int(num))
-    if not law or not cn:
+    needle = _lg.norm_article(m.group(2) or "")
+    if not law or not needle:
         return []
 
-    files = [f for f in _all_source_files()
-             if f in (f"{law}.md", f"{law}.txt") or f.startswith(f"{law}_")]
+    # 法名归一后匹配文件名，而不是拿原话直接拼文件名。
+    # 原来写的是 `f == f"{law}.md" or f.startswith(f"{law}_")`，于是
+    # 《中华人民共和国商标法》第十五条 找不到「商标法.md」——
+    # 用户写全称是家常便饭，这条路径会静默落空、退化成"全库语义检索"，
+    # 而那正是这条分支当初要修的病（52 部法条文长一个样，rerank 只能猜）。
+    # 判据与 law_scope 保持一致（stem 相等或前缀），否则作用域和精确定位
+    # 会对同一部法给出两个答案。
+    _stem = _law_scope.law_stem(law)
+    files = []
+    for f in _all_source_files():
+        fs = _law_scope.law_stem(f)
+        if fs and _stem and (fs == _stem or fs.startswith(_stem) or _stem.startswith(fs)):
+            files.append(f)
     if not files:
         return []
 
-    needle = f"第{cn}条"
+    # 精确 stem 的文件排前面：问《商标法》时「商标法.md」必须先于
+    # 「商标法实施条例.md」被检查到，否则会在实施条例里先撞上同一个条号。
+    files.sort(key=lambda f: (0 if _law_scope.law_stem(f) == _stem else 1, len(f)))
+
     for fname in files:
+        # 直接用 法+条号 组合查询，不再把整部法拉下来逐块搜。
+        # 「民法典」一份就 1,260 块，全量取回再过滤既慢又没必要 ——
+        # 建库时每块都带 article（覆盖率 100%），where 组合能精确命中。
+        try:
+            got = vectorstore.get(
+                where={"$and": [{"source_file": fname}, {"article": needle}]},
+                include=["documents", "metadatas"],
+            )
+        except Exception:
+            got = {}
+        docs = [Document(page_content=t, metadata=md or {})
+                for t, md in zip(got.get("documents") or [], got.get("metadatas") or [])
+                if t]
+        if docs:
+            # 这里**不排序**：精确命中的块顺序一旦变动，模型对同一条的复述方式
+            # 也会变。实测《个人所得税法》第十条排序后反而把「纳税人应当依法办理
+            # 纳税申报」答成「需要办理」——同为 generation_loss，但一条本来通过的
+            # 题挂掉了。分片顺序是既有缺陷（见 _order_article_chunks），
+            # 修它该单独验证，不该夹在图谱接入里悄悄改变既有基线。
+            return docs[:2]
+
+        # 旧索引（定长切块）没有 article 字段，上面那条必然 0 行 ——
+        # 退回"正文里出现条号"的判据。只对没有该字段的索引有意义。
         try:
             got = vectorstore.get(where={"source_file": fname},
                                   include=["documents", "metadatas"])
@@ -498,16 +674,116 @@ def _exact_article_lookup(query: str) -> List[Document]:
                 for t, md in zip(got.get("documents") or [], got.get("metadatas") or [])
                 if needle in (t or "")]
         if docs:
-            # 按条切块后每块都带 `article`，能直接判"这块就是那条"。
-            # 只按条号出现位置排不够稳：法条正文里常有「依照第三十六条…」这种
-            # 交叉引用，位置比块前缀更靠前，会把引用块排到真身上面。
+            # 正文里的「依照第三十六条」比条号前缀更靠前，会把引用块排到真身上面，
+            # 所以先按 article 字段挑，挑不出来再按出现位置排。
             exact = [d for d in docs if (d.metadata or {}).get("article") == needle]
             if exact:
                 return exact[:2]
-            # 旧索引（定长切块）没有 article 字段，退回按出现位置排序
             docs.sort(key=lambda d: d.page_content.find(needle))
             return docs[:2]
     return []
+
+
+def _ngrams(text: str, n: int = 2) -> set:
+    """字符 n-gram 集合（只留中文/字母/数字）。中文按 2 字切就够用了。"""
+    t = re.sub(r"[^\u4e00-\u9fa5a-zA-Z0-9]", "", text or "")
+    return {t[i:i + n] for i in range(len(t) - n + 1)}
+
+
+def _rank_by_query(docs: List[Document], query: str) -> List[Document]:
+    """按与问句的字符重合度排序（纯字符串，不调模型）。
+
+    为什么必须排：图补回来的邻居是"同一部法、结构相同"的条文块，
+    每块开头都是「第X条」，长度也接近。8 块并列摆给 7B 时，
+    它会把内容归错条 —— 实测问「510 条被援引的条文里哪一条管质量要求」，
+    616 条的原文就在上下文第 5 块，模型却答成"第五百一十条规定了…"
+    （内容抄对了，主语挂错了）。
+
+    排序不能解决全部问题，但它把"问句里出现最多字"的那一块顶到最前，
+    模型抄的时候更容易连条号一起抄。比让 rerank 再跑一遍便宜得多 ——
+    这些块本来就没经过 rerank（图确认的关系是结构性的，不需要语义打分）。
+    """
+    qg = _ngrams(query)
+    if not qg or len(docs) < 2:
+        return docs
+    return sorted(docs, key=lambda d: -len(qg & _ngrams(d.page_content)))
+
+
+def _ref_tag(doc: Document) -> str:
+    """图补块的标题标签。
+
+    必须把"这是关联条文、不是锚点本身"写进去。上下文里所有块的开头
+    都是「第X条」，模型分不清哪块是用户问的那一条、哪块是被它援引的那一条 ——
+    实测答案会变成"第五百一十条规定了标的物的质量要求…"（内容取自 616，
+    主语写成 510）。标签是这个混淆唯一低成本的解法：它不改变证据，
+    只改变模型对证据的归属判断。
+    """
+    a = (doc.metadata or {}).get("graph_anchor")
+    if a:
+        return f"依据：条文引用图·{a}所援引或引用的条文"
+    return "依据：条文引用图"
+
+
+def _fetch_by_refs(refs: List["_lg.Ref"], max_refs: int = 6,
+                   query: str = "", anchor: str = "") -> List[Document]:
+    """按图确认的条号，把整条原文取回来（每条聚成一个 Document）。
+
+    与 `_exact_article_lookup` 的区别：那个处理"用户点名的那一条"，
+    这个处理"图说与它有关、但用户没提的那几条"。后者在向量空间里与问句
+    几乎不相似（问的是 A 条，要给的是 A 被 B 条援引），
+    靠 rerank 永远捞不到，只能由引用边送进来。
+
+    不做逐块保留、而是把同一条的多个块拼回一段：
+      · 长条文建库时会被切成 3~4 块，只取第一块常常缺答案（条件是分段给的）
+      · 拼成一段后一个邻居只占一个候选位，上下文长度可预期
+    同一条同时有 md 与 PDF 副本时只留 md —— 判据与 RAG_SHADOW_PENALTY 一致，
+    两份内容几乎逐字相同，都塞进去只是把上下文撑大一倍。
+    """
+    if not refs:
+        return []
+    files = _all_source_files()
+    out: List[Document] = []
+    for r in refs[:max_refs]:
+        if not r.law or not r.no:
+            continue
+        stem = _law_scope.law_stem(r.law)
+        cand = []
+        for f in files:
+            fs = _law_scope.law_stem(f)
+            if fs and stem and (fs == stem or fs.startswith(stem) or stem.startswith(fs)):
+                cand.append(f)
+        if not cand:
+            continue
+        cand.sort(key=lambda f: (0 if _law_scope.law_stem(f) == stem else 1, len(f)))
+        rows: List[tuple] = []
+        for fname in cand:
+            try:
+                got = vectorstore.get(
+                    where={"$and": [{"source_file": fname}, {"article": r.no}]},
+                    include=["documents", "metadatas"],
+                )
+            except Exception:
+                continue
+            rows = list(zip(got.get("documents") or [], got.get("metadatas") or []))
+            if rows:
+                break
+        if not rows:
+            continue
+        md_rows = [x for x in rows if not (x[1] or {}).get("shadow")]
+        picked = md_rows or rows
+        # 分片顺序同样是乱的（chroma id 是 UUID），按"条首在前"重排，
+        # 否则拼出来的是「（三）…（七）」+「第十五条 …（一）（二）」这种倒序正文。
+        ordered = _order_article_chunks([Document(page_content=t or "", metadata=m or {})
+                                         for t, m in picked], r.no)
+        text = "\n".join(d.page_content.strip() for d in ordered if d.page_content.strip())
+        if not text:
+            continue
+        meta = dict(picked[0][1] or {})
+        meta["graph_ref"] = True
+        if anchor:
+            meta["graph_anchor"] = anchor
+        out.append(Document(page_content=text, metadata=meta))
+    return _rank_by_query(out, query)
 
 
 def _search_knowledge_base_impl(query: str = "", original_query: str = "") -> str:
@@ -524,10 +800,52 @@ def _search_knowledge_base_impl(query: str = "", original_query: str = "") -> st
         raw_query = (original_query or "").strip()
         search_query = rewritten_query or raw_query
 
+        # 自包含问句改用原话检索，把「改写每次不同 → 检索每次不同」这条随机性掐掉，
+        # 理由见 _query_is_self_contained 上方。指代/省略式追问仍走模型改写。
+        _mode = _rewrite_mode()
+        if raw_query and _mode != "llm":
+            _use_raw = _mode == "raw" or _query_is_self_contained(raw_query)
+            if _use_raw:
+                search_query = raw_query
+                if rewritten_query and rewritten_query != raw_query:
+                    logger.info(f"🧭 自包含问句用原话检索（模型改写: {rewritten_query!r}）")
+
         if not search_query:
             return "检索问题为空，请重新描述你的问题。"
 
-        logger.info(f"🔎 检索 query(改写后): {rewritten_query!r} | 用户原话: {raw_query!r}")
+        logger.info(f"🔎 检索 query(实际用): {search_query!r} | 模型改写: {rewritten_query!r} | 用户原话: {raw_query!r}")
+
+        # ===== 条文引用图（只对"点名了法名+条号"的问句启用） =====
+        # 没有条号就没有锚点：图里 22,141 个节点全靠条号定位，
+        # 拿「商标注册条件有哪些」去查图只能全表扫，那是向量检索的活。
+        #
+        # 图给两样东西，形态不同：
+        #   law_facts    —— 事实句（"被 26 条援引（…）"），进上下文当确定性证据
+        #   law_ref_docs —— 邻居条文的原文，从索引里按条号精确取回
+        # 后者是这套东西真正的价值：问 A 条，答案却在 B 条里（B 援引了 A），
+        # 而 B 与 A 的字面相似度极低，rerank 永远捞不出来 —— 只有引用边能找到它。
+        law_facts: List[str] = []
+        law_ref_docs: List[Document] = []
+        _law_refs = _lg.refs_in(search_query) or _lg.refs_in(raw_query)
+        if _law_refs and not _law_graph_on():
+            logger.info(f"🧪 消融：条文引用图已关闭，丢弃 {len(_law_refs)} 处引用证据")
+            _law_refs = []
+        if _law_refs:
+            _cite_q_pre = _lg.asks_citation(search_query)
+            with _obs.stage("law_graph"):
+                # 问的是引用关系 → 清单就是答案，不许截断成"另有 N 条未列出"
+                law_facts, _extra_refs = _lg.facts(_law_refs, full=_cite_q_pre)
+                if _extra_refs:
+                    _anchor = "、".join(
+                        f"{_lg.short_law(r.law or r.raw_law)}{r.no}" for r in _law_refs
+                    )
+                    law_ref_docs = _fetch_by_refs(
+                        _extra_refs, query=search_query, anchor=_anchor
+                    )
+            if law_facts:
+                logger.info(f"📚 条文引用图: {' ｜ '.join(law_facts)[:160]}")
+            if law_ref_docs:
+                logger.info(f"📚 条文引用图补入 {len(law_ref_docs)} 条邻居原文")
 
         # 引用型问句（"《专利法》第三十六条"）先走精确查找：这类查询没有语义内容，
         # 交给向量+重排会稳定跑偏，见 _exact_article_lookup 的说明。
@@ -537,10 +855,22 @@ def _search_knowledge_base_impl(query: str = "", original_query: str = "") -> st
                         f"{_doc_source(exact_docs[0].metadata)}")
             _obs.current().note(route="exact_article", candidates=len(exact_docs),
                                 top1=0.9, chunks=len(exact_docs))
-            return "\n\n---\n\n".join(
-                f"【来源：{_doc_source(d.metadata)}】【置信度：0.9000】\n{d.page_content}"
-                for d in exact_docs
-            )
+
+            body = [f"【来源：{_doc_source(d.metadata)}】【置信度：0.9000】\n{d.page_content}"
+                    for d in exact_docs]
+            # 邻居块不带【置信度】：它没有经过 rerank，标一个数会污染下游的
+            # _scores_from_turn（那里是 confidence 的唯一来源）。
+            ref_body = [f"【来源：{_doc_source(d.metadata)}】【{_ref_tag(d)}】\n{d.page_content}"
+                        for d in law_ref_docs]
+            fact_block = ("【来源：条文引用图】【确定性事实】\n" + "\n".join(law_facts)) if law_facts else ""
+
+            # 问的是「谁引用了它」→ 图事实就是答案，本体条文只是佐证，放最前；
+            # 问的是「它怎么规定」→ 正相反，本体条文在前，图事实收尾补充。
+            if fact_block and _lg.asks_citation(search_query):
+                parts = [fact_block] + body + ref_body
+            else:
+                parts = body + ref_body + ([fact_block] if fact_block else [])
+            return "\n\n---\n\n".join(parts)
 
         # 点名了《某法》，而库里一篇都没有 → 直接如实拒答。
         # 这一步必须放在检索之前：等到检索返回结果再判断就晚了，
@@ -554,59 +884,54 @@ def _search_knowledge_base_impl(query: str = "", original_query: str = "") -> st
             _obs.current().note(route="law_absent", candidates=0, top1=0.0, chunks=0)
             return f"知识库中没有收录{names}，无法引用条文回答。"
 
-        # 实体过滤器只认「用户本轮原话」里的实体：
-        #   - 用户问"小智喜欢什么"，哪怕 query 被写成了"加里奥和小智…"，过滤器也只留"小智"
-        #   - 用户问"他属于哪个国家"，原话没有实体，这时才允许用改写后 query 里的实体
-        filter_entities = _extract_entities(raw_query) or _extract_entities(search_query)
-        if filter_entities and not ENTITY_FILTER_SUPPORTED:
-            # 索引里没有 entity 字段时，filter 一定是空集 —— 等于"强制拒答"。
-            # 这里降级为不过滤继续检索（启动时已告警一次）。
-            filter_entities = []
-        if filter_entities:
-            logger.info(f"🎯 实体过滤器: {filter_entities}")
+        # 用户点名了库里**确实有**的法 → 把召回范围收敛到这几部之内。
+        #
+        # 与上面 missing_laws 是同一套判据，分工不同：
+        #   missing_laws  → 「一篇都没有」→ 直接拒答（防"拿招标投标法答计量法"）
+        #   scoped_sources → 「有，但不许别的法混进来」（同一个失效模式的另一半）
+        #
+        # 之前只做了前一半。所以「《劳动合同法》关于试用期的规定」这类问句
+        # （点名了法、没条号、走不了 _exact_article_lookup）仍然全库检索，
+        # 别的法只要字面接近就能进 top-5，用户完全看不出来。
+        #
+        # 用改写后的句子抽，抽不到再退回原话：改写偶尔会把书名号抹掉，
+        # 而原话里通常还在。
+        scoped_files = _law_scope.scoped_sources(
+            search_query, _all_source_files()
+        ) or _law_scope.scoped_sources(raw_query or "", _all_source_files())
+        if scoped_files:
+            _head = "、".join(scoped_files[:4]) + ("…" if len(scoped_files) > 4 else "")
+            logger.info(f"🎯 法名作用域: {len(scoped_files)} 个来源（{_head}）")
 
-        # 因果类问题的「固有属性」补充证据（下面拼装结果时会插到最前面）
-        causality_facts: List[str] = []
+        # 实体过滤器已下线（2026-11-25）。两道闸门都是关的：
+        #   ① 索引 entity 元数据 0 行（31,856 块全没有），`ENTITY_FILTER_SUPPORTED` 恒 False；
+        #   ② 抽取用的是 29 条硬编码 demo 词表（小智/加里奥/番茄炒蛋…），法律问句恒空。
+        # 于是 k=30 + metadata filter + 后过滤这一整套从来没执行过，已整段删除。
+        # 法律侧的作用域不靠 entity，靠「法名 → source_file 收敛」（见上面 scoped_files）。
+        #
+        # demo 图谱（L0/L1/L2）也在同一天整体下线：730 实体里零法律概念，法律题恒判否，
+        # 那段是一次都不会执行的空转。法律图谱由条文引用图承担，见上面 `_law_refs`。
+        # `_law_entities_in` 保留：它现在只服务多轮代词消解（见 _rewrite_pronoun）。
 
-        if any(kw in search_query for kw in ["为什么", "怎么", "如何"]):
-            logger.info("🔀 因果解释类问题，走向量检索")
-            # 「为什么X能Y」往往需要 X 的固有属性（由什么制成／是什么）才能答全，
-            # 而这类事实与问题的字面相似度天然偏低：实测「雕塑家杜朗用禁魔石…加里奥问世」
-            # 对「加里奥为什么能吸收魔法」的 rerank 分只有 0.138，永远挤不进 top-5。
-            # 图谱里这条边是确定的，直接取出来，比指望 reranker 猜出来可靠得多。
-            with _obs.stage("graph_attr"):
-                causality_facts = entity_facts(filter_entities)
-            if causality_facts:
-                logger.info(f"🧩 因果类属性补充: {causality_facts}")
-        elif len(filter_entities) >= 2:
-            # 多实体比较问题（"小张和小李分别住在哪"）不走图谱：
-            # 一条 Cypher 只能顺着一条路径查，模型实测只会覆盖其中一个人，
-            # 另一个就变成"资料里没有找到"。混合检索能同时召回两个人的块。
-            logger.info(f"🔀 多实体问题（{filter_entities}），走向量混合检索")
-        elif _should_route_graph(search_query, filter_entities):
-            logger.info("🔀 关系查询，转给图谱检索")
-            # 图谱拿改写后的完整句子去生成 Cypher；original_query 只作兜底提示
-            # 图谱链路单独计时：它和向量链路是两条完全不同的路径，
-            # 混在一起看总耗时，根本分不清"是 Cypher 慢还是 rerank 慢"。
-            with _obs.stage("graph"):
-                graph_result = search_knowledge_graph.invoke(
-                    {"query": search_query, "original_query": raw_query or search_query}
-                )
-
-            if graph_result and "图谱中未找到" not in graph_result and "检索出错" not in graph_result and "无法从知识库中找到" not in graph_result:
-                _obs.current().note(route="graph")
-                return graph_result
-            logger.warning("⚠️ 图谱未命中，自动降级走向量混合检索...")
-
-        # 多实体检索
-        if filter_entities:
-            if len(filter_entities) == 1:
-                vector_ret = vectorstore.as_retriever(search_kwargs={"k": 30, "filter": {"entity": filter_entities[0]}})
-            else:
-                # 多实体（比如：番茄炒蛋 和 青椒炒蛋），使用 $in 操作符，让两者都保留！
-                vector_ret = vectorstore.as_retriever(
-                    search_kwargs={"k": 30, "filter": {"entity": {"$in": filter_entities}}})
-            ensemble = EnsembleRetriever(retrievers=[bm25_retriever, vector_ret], weights=[0.4, 0.6])
+        # 两路召回
+        if scoped_files:
+            # 法名作用域：两路都收窄到这几部法之内。
+            #
+            # k 放宽到 15（默认 10）：范围从 31,856 块缩到一部法的几百块之后，
+            # 候选池的"多样性"下降了，同样的 k 更容易被同一章的相邻条文占满。
+            # 放宽的代价是多几对 rerank（每对约 0.09s），换来的是覆盖到"那一章的别处"。
+            #
+            # ⚠️ 向量侧必须用 source_file 过滤、BM25 侧必须用 scoped() 掩码，
+            # 少改一边都等于没做：EnsembleRetriever 照单全收两路的结果，
+            # 只要有一路还在全库捞，别的法就会顺着那一路混进来。
+            _scoped_k = int(os.environ.get("RAG_SCOPED_K", "15") or 15)
+            vector_ret = vectorstore.as_retriever(
+                search_kwargs={"k": _scoped_k, "filter": {"source_file": {"$in": scoped_files}}}
+            )
+            ensemble = EnsembleRetriever(
+                retrievers=[bm25_retriever.scoped(scoped_files, k=_scoped_k), vector_ret],
+                weights=[0.4, 0.6],
+            )
         else:
             vector_ret = vectorstore.as_retriever(search_kwargs={"k": 10})
             ensemble = EnsembleRetriever(retrievers=[bm25_retriever, vector_ret], weights=[0.4, 0.6])
@@ -615,13 +940,23 @@ def _search_knowledge_base_impl(query: str = "", original_query: str = "") -> st
         with _obs.stage("retrieve"):
             docs = multi_hop_retrieve(search_query, ensemble, max_hops=2)
 
-        # 后过滤也只保留过滤器里的实体
-        if filter_entities:
-            docs = [d for d in docs if d.metadata.get("entity") in filter_entities]
-            logger.info(f"🔍 实体过滤后剩余: {len(docs)} 个块")
-            if not docs:
-                return "未在知识库中找到相关信息。"
+        # 作用域兜底：两路都已收窄，这里仍然过一遍。
+        # 理由是 multi_hop_retrieve 内部会再调一次 ensemble，任何一处漏传作用域
+        # 都会让别的法的块混进来 —— 而那种错（有来源、有分数、但不是问的那部法）
+        # 从外部完全看不出来，只能在这一层卡死。
+        if scoped_files:
+            _allow = set(scoped_files)
+            _n_before = len(docs)
+            docs = [d for d in docs if (d.metadata or {}).get("source_file") in _allow]
+            if len(docs) != _n_before:
+                logger.info(f"🔍 法名作用域后过滤: {_n_before} → {len(docs)} 块")
 
+        if not docs:
+            return "未在知识库中找到相关信息。"
+
+        # 影子抄本硬去重：同一条内容的 md 与 PDF 两份不再同时占候选名额
+        # （原来只靠 shadow 减 0.05 分，拦不住两份同时进 top-5，见 _dedup_shadow_docs 注释）。
+        docs = _dedup_shadow_docs(docs)
         if not docs:
             return "未在知识库中找到相关信息。"
 
@@ -649,10 +984,13 @@ def _search_knowledge_base_impl(query: str = "", original_query: str = "") -> st
         # padding 是按 batch 内最长动态算的，改它纯属空操作。
         # 窗口、门槛、加成、top-k 的唯一来源是 retrieval_policy（来历见那个文件的文件头）。
         # 这里只负责"取下标 → 打分 → 交给策略选块"，不再自带任何阈值判断。
-        # 窗口 = max(规模下限, 环境变量)。环境变量只能调大 —— 见 rerank_window 的说明。
-        max_candidates = _rp.rerank_window(
-            _KB_CHUNKS, os.environ.get("RAG_RERANK_CANDIDATES"),
-            _rp.DEFAULT_RERANK_CANDIDATES,
+        # 窗口 = 候选数（默认全量，永不截断）。
+        # 原来按**索引规模**分档（300 以上 16、1000 以上 24）是错的判据：
+        # 候选数由 k 决定，跟库有多大无关 —— 31,856 块的库里一次查询仍然只有
+        # BM25 的 10 + 向量的 10。实测 5 次候选 11/13/19/20/19，全部 < 24，
+        # 那条规则从上线起一次都没触发过。详见 rerank_budget 的说明。
+        max_candidates = _rp.rerank_budget(
+            len(docs), os.environ.get("RAG_RERANK_CANDIDATES")
         )
         keep = _rp.candidate_slice(len(docs), max_candidates)
         if len(keep) < len(docs):
@@ -676,7 +1014,19 @@ def _search_knowledge_base_impl(query: str = "", original_query: str = "") -> st
         # 两个保险：①候选里一块 md 都没有时（比如问的法只有 PDF）不减分，否则会把
         # 唯一证据压到门槛以下，误判"检索落空"；②减分幅度默认 0.05，远小于正常
         # 相关/不相关之间的差距（0.6 vs 0.2），只够打破平局。
-        _sp = float(os.environ.get("RAG_SHADOW_PENALTY", "0.05") or 0)
+        # 默认 0.05。曾经试过为了 D013「集体商标」上调到 0.10，已回滚：
+        # 那次失分的归因是召回率 1.000（证据一直在 contexts 里），
+        # 同问题连跑 5 次有 4 次能答对 —— 是**生成侧随机**，不是 PDF 挤掉了 md。
+        # 上调没有依据，还会在"md 与 pdf 并存、正确答案只在 PDF"的边界上多压一半。
+        #
+        # 默认已改为 0（2026-11-25）：硬去重 `_dedup_shadow_docs` 接管了"同一条
+        # 两份抄本只留一份"之后，候选里再出现 shadow 块，就只剩 md 没有的独有内容
+        # （表格页、扫描件、md 漏收的条）—— 对这些再减分是净惩罚。
+        # 实测（71 题，只改这一个变量）：**分数 0.9577 与 15 个分组完全相同**，
+        # contexts 69/71 一致；差异的 2 条（D013 集体商标、R02 拒答题）是 PDF 副本
+        # 分数回升 0.05 后换了位次，两条题都仍是满分 —— 减分只改位次，不改对错。
+        # 开关留着：设成 1.1 之类的正数可临时恢复，不需要改代码。
+        _sp = float(os.environ.get("RAG_SHADOW_PENALTY", "0") or 0)
         if _sp > 0:
             _flags = [bool((d.metadata or {}).get("shadow")) for d in docs]
             if any(_flags) and not all(_flags):
@@ -703,12 +1053,6 @@ def _search_knowledge_base_impl(query: str = "", original_query: str = "") -> st
         best_raw = selection.best_raw
 
         if not selection.relevant:
-            if causality_facts:
-                logger.info(
-                    f"🕳️ 向量检索落空（top1={best_raw:.4f} < {min_relevant}），"
-                    f"但图谱有确定性属性，只返回事实"
-                )
-                return "【来源：知识图谱属性】【确定性事实】\n" + "；".join(causality_facts)
             logger.info(
                 f"🕳️ 检索落空：top1={best_raw:.4f} < 门槛 {min_relevant}，判定知识库无相关内容"
             )
@@ -726,22 +1070,28 @@ def _search_knowledge_base_impl(query: str = "", original_query: str = "") -> st
         )
 
         results = []
+
+        # 条文引用图事实：问"谁引用它"时前置（它就是答案），否则收尾补充。
+        # 不需要门控：图事实只在本句点名了「法名+条号」时才存在，
+        # 不会出现"广州市混进法条"那类串台。
+        _cite_q = bool(law_facts) and _lg.asks_citation(search_query)
+        if _cite_q:
+            results.append(
+                "【来源：条文引用图】【确定性事实·与下文冲突时以此为准】\n"
+                + "\n".join(law_facts)
+            )
         for doc, _rank_score, raw in top_docs:
             source = _doc_source(doc.metadata)
             results.append(f"【来源：{source}】【置信度：{raw:.4f}】\n{doc.page_content}")
 
-        # 因果类问题：把图谱里的固有属性放在**最后**。
-        # 注意这里不带【置信度：x】——它是确定性事实，没有 rerank 分，
-        # 乱标一个数值会污染下游的置信度提取。
-        #
-        # 为什么是末尾而不是开头（2026-11-08 实测）：
-        #   放在开头时，31 字的事实紧挨着 200+ 字的叙事段，模型的注意力被后者带走，
-        #   答成"为什么活了过来"，而不是"为什么能吸收魔法"，禁魔石从头到尾没出现。
-        #   放到末尾后（离问题最近），答案稳定变成"因为他由禁魔石制成"。
-        if causality_facts:
+        # 条文引用图补回的邻居原文，排在被 rerank 选中的块之后：
+        # 它们是"用户没提、但结构上被援引"的背景，不该盖过直接证据。
+        for d in law_ref_docs:
             results.append(
-                "【来源：知识图谱属性】【确定性事实】\n" + "；".join(causality_facts)
+                f"【来源：{_doc_source(d.metadata)}】【{_ref_tag(d)}】\n{d.page_content}"
             )
+        if law_facts and not _cite_q:
+            results.append("【来源：条文引用图】【确定性事实】\n" + "\n".join(law_facts))
 
         # 打点：这一轮走的哪条路、吃了多少候选、top1 多少分。
         # 出问题时第一件事就是看这三个数——route 决定看哪段耗时，top1 决定是不是检索落空。
@@ -842,8 +1192,10 @@ def multi_hop_retrieve(query: str, retriever, max_hops=2):
 # 历史上这里同时挂了 search_knowledge_graph，让模型二选一，结果是聚合类问题
 # （如"谁养了猫"）模型会直接选中图谱工具，而图谱工具没有降级逻辑：图上查不到
 # 就直接回"无法从知识库中找到相关信息"，尽管向量库里明明有对应文本块。
-# 图谱能力并没有丢——search_knowledge_base 内部会先做 is_relation_query 意图判断，
-# 命中关系类再转图谱，图谱 0 行时自动降级到向量+BM25 混合检索。
+#
+# 2026-11-25 那套 demo 图谱整体下线（730 实体里零法律概念，法律题恒判否）。
+# 法律侧的图谱能力由条文引用图承担：它在 search_knowledge_base 内部按
+# 「法名 + 条号」触发，不需要模型来选工具，也就不存在选错的问题。
 tools = [search_knowledge_base]
 tool_node = ToolNode(tools)
 
@@ -933,7 +1285,17 @@ class AgentState(TypedDict):
 # load_dotenv() 已在文件头部调用（常量区要读 RAG_LLM_PROVIDER），这里不再重复。
 # 分档判断也用头部解析好的 LLM_PROVIDER。
 
-cloud_llm = ChatDeepSeek(model="deepseek-chat", temperature=0, timeout=60, max_retries=3)
+# ⚠️ temperature=0 **不等于**确定性，至少对 Ollama 不是。
+# 实测（qwen2.5:7b，同一 prompt 连发 3 次，2026-11-25）：
+#   只给 temperature=0  → 3 次 3 种输出
+#   再钉死 seed=42      → 3 次逐字一致
+# 原因：Ollama 不带 seed 时每次随机取种子，temperature 只把采样压成贪心之外的形状，
+# 种子一变、并列 token 的取舍就变。评测里表现为「同一上下文、同一题，1 过 2 挂」，
+# 曾被我误判成生成抖动而放弃复现。DeepSeek 侧同理（它支持 seed 参数）。
+LLM_SEED = int(os.getenv("RAG_LLM_SEED") or 42)
+
+cloud_llm = ChatDeepSeek(model="deepseek-chat", temperature=0, seed=LLM_SEED,
+                         timeout=60, max_retries=3)
 
 if LLM_PROVIDER == "hybrid":
     # 延迟导入：云端镜像用不到，不 import 就不会因为缺包而启动失败
@@ -949,6 +1311,9 @@ if LLM_PROVIDER == "hybrid":
         model=_ollama_model,
         base_url=_ollama_base,
         temperature=0.0,
+        # 必须显式给 seed，否则 Ollama 每次换随机种子，temperature=0 也复现不了
+        # （见上方 LLM_SEED 的实测说明）。评测要一个稳定数字就靠它。
+        seed=LLM_SEED,
         num_predict=int(os.getenv("RAG_LOCAL_NUM_PREDICT") or 1024),
         # 4096 而不是 2048：窗口从 3 轮提到 8 轮，2048 装不下
         # 「8 轮历史 + 检索证据 + system」。代价是 KV cache 翻倍、prefill 稍慢；
@@ -965,6 +1330,7 @@ else:
     local_llm = ChatDeepSeek(
         model="deepseek-chat",
         temperature=0.0,
+        seed=LLM_SEED,
         timeout=60,
         max_retries=3
     )
@@ -1296,14 +1662,15 @@ SYSTEM_PROMPT_ANSWER_NO_DOCS = """你是一个严谨的本地知识库问答助�
 
 # 模型有时会凭 prompt 里的历史印象吐出已被移出工具列表的旧名字。
 # 这里只做"改名"，参数结构两边一致（query / original_query），所以能无缝改道。
+# 工具本体（demo 图谱）2026-11-25 已下线，这条映射留着是为了兼容旧会话历史。
 _TOOL_NAME_ALIASES = {"search_knowledge_graph": "search_knowledge_base"}
 
 
 def _coerce_tool_calls(tool_calls: list) -> list:
     """把模型吐出的已下线工具名改写成唯一入口 search_knowledge_base。
 
-    不这么兜底的话，一旦模型写到 search_knowledge_graph，ToolNode 找不到该工具会直接抛错；
-    而如果放行它，又会绕过"图谱未命中 → 降级向量"的逻辑，聚合类问题就会谎报查不到。
+    不这么兜底的话，一旦模型写到 search_knowledge_graph，ToolNode 找不到该工具会直接抛错，
+    整轮对话就废了 —— 旧会话里残留的工具名不该成为致命错误。
     """
     fixed = []
     for tc in tool_calls:
@@ -1403,10 +1770,10 @@ async def _run_tool_decision(prompt_messages: List[BaseMessage], last_user_msg: 
 def _stamp_original_query(tool_calls: list, last_user_msg: str, thread_id: str) -> list:
     """
     给检索类工具补上 original_query（用户本轮原话），并做一次确定性的代词兜底改写。
-    original_query 是工具内部"实体过滤器"的唯一依据：只有原话里出现的实体才允许进检索，
-    从机制上保证不会把上一轮实体带进来。
+    original_query 是工具内部「自包含判定」的依据：原话本身说清了对象就直接用原话检索，
+    不交给模型改写 —— 改写每次换个说法，召回块就换一批。
     """
-    current_entities = _extract_entities(last_user_msg)
+    current_entities = _law_entities_in(last_user_msg)
     prev_entities = _ENTITY_MEMORY.get(thread_id, [])
 
     for tc in tool_calls:
@@ -1417,7 +1784,7 @@ def _stamp_original_query(tool_calls: list, last_user_msg: str, thread_id: str) 
 
         args = tc.setdefault("args", {})
         llm_query = (args.get("query") or "").strip()
-        query_entities = _extract_entities(llm_query)
+        query_entities = _law_entities_in(llm_query)
 
         # query 里没实体、原话里也没实体，但出现了"他/它/这个" → 用会话记忆硬改写
         if not current_entities and not query_entities and _has_pronoun(last_user_msg) and prev_entities:
@@ -1453,7 +1820,7 @@ async def agent_node(state: AgentState, config: RunnableConfig = None):
     already_retrieved = _turn_has_tool_result(messages)
     prompt_messages = _compress_history(messages)
 
-    current_entities = _extract_entities(last_user_msg)
+    current_entities = _law_entities_in(last_user_msg)
     prev_entities = _ENTITY_MEMORY.get(thread_id, [])
 
     # ==============================================================
@@ -1466,11 +1833,13 @@ async def agent_node(state: AgentState, config: RunnableConfig = None):
             entities = list(prev_entities)
             use_memory = True
 
-        # 1.1 命中已知实体（含代词回指）→ 不给 7B 偷懒的机会，代码直接伪造检索请求
+        # 1.1 命中法名 / 「法名+条号」（含代词回指）→ 不给 7B 偷懒的机会，代码直接伪造检索请求。
+        #     法律问题必须先查库：模型自决过一次"不用查"，凭记忆答，外部看 status=answered、
+        #     confidence=0.99，完全看不出异常（见 decide_guard.looks_legal 的说明）。
         if entities:
             search_query = _rewrite_pronoun(last_user_msg, entities) if use_memory else last_user_msg
             logger.warning(
-                f"⚠️ 命中已知实体 {entities}（{'代词回指' if use_memory else '直接命中'}），"
+                f"⚠️ 命中法名 {entities}（{'代词回指' if use_memory else '直接命中'}），"
                 f"代码强制注入检索请求！query={search_query!r}"
             )
             _remember_entities(thread_id, entities)

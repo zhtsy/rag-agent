@@ -33,12 +33,23 @@ class SimpleBM25Retriever(BaseRetriever):
     k: int = 10
     bm25: object = None
     tokenized_corpus: list = None
+    # 只在这几个来源文件里检索（空 = 全库）。
+    #
+    # 这是"法名硬过滤"在 BM25 这一侧的落点。向量侧可以用 chroma 的
+    # `where={"source_file": {"$in": [...]}}`，但 BM25 是内存全量索引，
+    # 没有 filter 接口 —— 于是它的 top-10 名额可能被别的法占满，
+    # 向量侧收窄了也没用（EnsembleRetriever 会把这 10 块照单全收）。
+    #
+    # 实现方式是在打分后掩码，不是重建索引：31,856 块的 BM25Okapi 构建要几十秒，
+    # 每次查询重建不现实。掩码只是多一次 O(n) 遍历，微秒级。
+    source_files: List[str] = []
 
-    def __init__(self, documents, metadatas, k=10):
+    def __init__(self, documents, metadatas, k=10, source_files=None):
         super().__init__(
             documents=documents,
             metadatas=metadatas,
-            k=k
+            k=k,
+            source_files=list(source_files or []),
         )
         self.tokenized_corpus = [list(jieba.cut(doc)) for doc in documents]
         self.bm25 = BM25Okapi(self.tokenized_corpus)
@@ -46,11 +57,39 @@ class SimpleBM25Retriever(BaseRetriever):
     def _get_relevant_documents(self, query: str, **kwargs) -> List[Document]:
         tokenized_query = list(jieba.cut(query))
         scores = self.bm25.get_scores(tokenized_query)
-        top_indices = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)[:self.k]
+
+        allow = set(self.source_files) if self.source_files else None
+        if allow is None:
+            pool = range(len(scores))
+        else:
+            pool = [
+                i for i in range(len(scores))
+                if (self.metadatas[i] or {}).get("source_file") in allow
+            ]
+
+        top_indices = sorted(pool, key=lambda i: scores[i], reverse=True)[: self.k]
         return [
             Document(page_content=self.documents[i], metadata=self.metadatas[i])
             for i in top_indices if scores[i] > 0
         ]
+
+    def scoped(self, source_files, k=None) -> "SimpleBM25Retriever":
+        """同一份索引、限定来源文件的**浅拷贝**（不重建 BM25）。
+
+        必须拷贝而不是改自己：`bm25_retriever` 是模块级单例，
+        直接改 `source_files` 会在并发请求之间互相污染 —— 用户 A 问了
+        《劳动合同法》、用户 B 同时问了《专利法》，两人会看到对方的作用域。
+
+        `model_copy` 不走 `__init__`，所以 `tokenized_corpus` / `bm25`
+        是共享引用，只多出一个 list。代价是一次浅拷贝。
+        """
+        upd = {"source_files": list(source_files or [])}
+        if k:
+            upd["k"] = int(k)
+        try:
+            return self.model_copy(update=upd)      # pydantic v2
+        except AttributeError:
+            return self.copy(update=upd)            # pydantic v1
 
 
 def build_bm25_retriever():

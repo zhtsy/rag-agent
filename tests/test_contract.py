@@ -46,9 +46,14 @@ def test_rag_agent_does_not_redefine_confidence_logic():
 
 
 def test_rag_agent_instruments_retrieval_stages():
-    """检索链路的关键阶段必须打点，否则"慢在哪"又只能靠猜。"""
+    """检索链路的关键阶段必须打点，否则"慢在哪"又只能靠猜。
+
+    `stage("graph")` 原来是 demo 图谱那一段的计时，2026-11-25 随它下线，
+    换成法律侧的 `stage("law_graph")` —— 要守的是"关键路径有计时"这件事，
+    不是某个具体名字。
+    """
     src = (ROOT / "rag_agent.py").read_text(encoding="utf-8")
-    for stage in ('stage("rerank")', 'stage("retrieve")', 'stage("graph")', 'stage("decide")'):
+    for stage in ('stage("rerank")', 'stage("retrieve")', 'stage("law_graph")', 'stage("decide")'):
         assert stage in src, f"缺少耗时打点 {stage}"
 
 

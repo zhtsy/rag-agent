@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""graph_retriever 的惰性连接：不连库也能 import，连不上要快速降级。
+"""graph_retriever 的惰性连接（demo 图谱下线后只剩这一层）：不连库也能 import，连不上要快速降级。
 
 覆盖一次真实故障（2026-11-05）：Neo4j 停机时 backend 起不来。
 根因是模块级 `graph = Neo4jGraph(...)`——"import 本模块"等于"必须连上库"：
@@ -34,13 +34,6 @@ class _FakeGraph:
     def query(self, cypher):
         self.queries.append(cypher)
         return [{"id": "小张"}]
-
-
-class _ExplodingLLM:
-    """被调用就失败：用来证明"连不上时不该白跑一次 LLM"。"""
-
-    def invoke(self, *_a, **_k):
-        raise AssertionError("图谱不可用时不应该调用 LLM 生成 Cypher")
 
 
 @pytest.fixture(autouse=True)
@@ -116,26 +109,6 @@ def test_success_is_cached(monkeypatch):
 
     assert first is second
     assert len(calls) == 1
-
-
-# ─── 3. 失败要短路，不要"带着连不上的报错再改一版 Cypher" ─────────
-def test_graph_unavailable_counts_as_fatal():
-    assert gr.GraphUnavailable in gr._FATAL_DB_ERRORS
-
-
-def test_run_cypher_short_circuits_without_calling_llm(monkeypatch):
-    def _boom():
-        raise ValueError("Could not connect to Neo4j database")
-
-    monkeypatch.setattr(gr, "_build_graph", _boom)
-    monkeypatch.setattr(gr, "llm", _ExplodingLLM())
-
-    rows, cypher, error = gr._run_cypher("小张养了什么")
-
-    assert rows == []
-    assert cypher == ""
-    assert error.startswith("图谱不可用"), error
-    # 若这里真的调了 LLM，_ExplodingLLM 会抛 AssertionError，用例失败。
 
 
 # ─── 4. 最贴故障现场的回归：Neo4j 不可达时 import 也必须成功 ──────

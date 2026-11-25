@@ -176,9 +176,19 @@ def main() -> int:
     ap.add_argument("--sleep", type=float, default=2.0, help="每问之间的间隔秒数")
     ap.add_argument("--timeout", type=int, default=180, help="单问超时秒数")
     ap.add_argument(
+        "--no-warmup",
+        action="store_true",
+        help="跳过预热请求（默认先打一发不记分的，见下方说明）",
+    )
+    ap.add_argument(
         "--layer-report",
         default="",
         help="额外输出分层归因报告（Markdown 路径；留空则只在终端打印汇总）",
+    )
+    ap.add_argument(
+        "--session-tag",
+        default="",
+        help="会话前缀（默认按启动时间自动生成，保证每轮都是干净会话）",
     )
     args = ap.parse_args()
 
@@ -194,6 +204,29 @@ def main() -> int:
     print(f"📋 测试集：{', '.join(files)} ｜ 本次 {len(cases)} 条 ｜ 后端 {args.base}")
     print("=" * 60)
 
+    # 会话必须按轮次隔离。原来固定写 `eval-{qid}`：后端会把这段历史存进 MySQL，
+    # 下一轮同题就把上一轮的问答一起喂给模型 —— 证据一样、**prompt 不一样**，
+    # `contexts` 里看不出来（它只装检索块），于是表现为"同题同证据，答案却变"。
+    # 实测（2026-11-25，G05）：固定 session 稳定漏掉第四条（2/3，两次答案 md5 完全相同），
+    # 换成全新 session 稳定 3/3。更糟的是模型会**沿用自己上一轮的错误答案**（答案惯性），
+    # 跑得越多越难改口，分数会随跑的次数漂移。
+    run_tag = args.session_tag.strip() or time.strftime("%m%d%H%M%S")
+    print(f"🆔 会话前缀：eval-{run_tag}-  （每轮干净，不继承历史）")
+
+    # 预热：后端刚重启后**第一个**生成请求的答案会和之后的不同（实测 L013 冷启动第 1 次
+    # 给的是摘要版、第 2 次起稳定给条目版，逐字一致）。根因在 llama.cpp 侧——首请求的
+    # prompt 没有可复用的 KV 前缀，切 batch 的方式与后续不同，logits 在并列 token 上
+    # 就会分叉，而这一步不受 temperature/seed 控制。
+    # 排除它只需先打一发不记分的请求；不排除的话，报告里会多出一条"只在重启后出现"
+    # 的失败行，看起来像缺陷、重跑又消失，是最难查的那类。
+    if not args.no_warmup:
+        try:
+            ask_stream(args.base, "你好", "eval-warmup", timeout=args.timeout)
+            print("🔥 预热完成")
+        except Exception as e:  # noqa: BLE001  预热失败不该挡住评测
+            print(f"⚠️ 预热失败（不影响评测）：{e}")
+        print("=" * 60)
+
     results, total_score, t_all = [], 0.0, time.time()
     for i, case in enumerate(cases, 1):
         qid = case.get("id", f"#{i}")
@@ -202,7 +235,7 @@ def main() -> int:
         t0 = time.time()
         try:
             answer, sources, confidence, ctx, status = ask_stream(
-                args.base, q, f"eval-{qid}", timeout=args.timeout
+                args.base, q, f"eval-{run_tag}-{qid}", timeout=args.timeout
             )
         except urllib.error.URLError as e:
             print(f"    ❌ 请求失败：{e}")

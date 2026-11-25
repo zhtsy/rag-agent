@@ -86,3 +86,61 @@ def missing_laws(query: str, source_files: Iterable[str]) -> List[str]:
             missing.append(name)
     # 只要有一部能对上就不拒——问了《专利法》和《商标法》，答复专利法那半也算答了。
     return missing if len(missing) == len(names) else []
+
+
+def scoped_sources(query: str, source_files: Iterable[str]) -> List[str]:
+    """问句点名了库里**确实有**的法 → 返回这几部法的来源文件，用于收敛召回范围。
+
+    空列表 = 不限定（问句没点名，或点名的法库里一篇都没有——后者由
+    `missing_laws` 直接拒答，轮不到这里）。
+
+    为什么需要它
+    ────────────
+    同一句「《某法》」原来只被用来判**有没有**（`missing_laws`），判完就丢掉了。
+    于是「《劳动合同法》关于试用期的规定」这类问句（点名了法、但没有条号，
+    走不了 `_exact_article_lookup`）仍然在 31,856 块里做全库检索，
+    别的法只要出现"试用期"三个字就能挤进 top-5 —— 和 P03 那次
+    「拿《招标投标法》回答《计量法》」是同一个失效模式，只是那次是法根本不存在，
+    这次是法存在但没被当成范围。
+
+    判据必须与 missing_laws 完全一致（law_stem + 双向包含），否则会出现
+    "missing_laws 说库里有、scoped_sources 说不匹配"这种自相矛盾，
+    表现为"既没拒答、又一块都检索不到"。
+
+    注意双向包含的副作用是**故意保留**的：用户写《企业所得税法》时，
+    `企业所得税法实施条例` 也会被纳入 —— 那正是该查的东西。
+    """
+    names = mentioned_laws(query)
+    if not names:
+        return []
+    pairs = []
+    for f in source_files or ():
+        if not f:
+            continue
+        stem = law_stem(f)
+        if stem:
+            pairs.append((f, stem))
+    if not pairs:
+        return []
+
+    hits: List[str] = []
+    for name in names:
+        stem = law_stem(name)
+        if not stem:
+            continue
+        for f, fs in pairs:
+            # 双向前缀，不是双向包含。
+            #
+            # 「包含」会把中间命中也算进来：`最高人民法院关于适用民法典侵权责任编
+            # 的解释` 里确实有"民法典"三个字，但它不是民法典本身。实测《民法典》
+            # 用包含判据会圈进 17 个文件（16 份司法解释），收敛等于没做；
+            # 《企业所得税法》会圈进 `外商投资企业和外国企业所得税法实施细则`
+            # —— 那部法 2008 年就废止了。前缀判据把这两类误匹配一起排除：
+            #   · 相等          → 同一部法
+            #   · 文件以用户开头 → 实施条例 / 实施细则 / 合同编 / 物权编
+            #   · 用户以文件开头 → 用户写了更细的编名
+            if f in hits:
+                continue
+            if fs == stem or fs.startswith(stem) or stem.startswith(fs):
+                hits.append(f)
+    return hits

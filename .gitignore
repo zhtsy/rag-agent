@@ -47,6 +47,10 @@ _flywheel_backup/
 # ========== 临时文件 ==========
 *.tmp
 *.bak
+# 改动前的整份备份：rag_agent.py.bak_before_demograph / *.bak.20261124g
+# 只留在本机做回滚，不进仓库（`*.bak` 匹配不到带后缀的名字）
+*.bak_*
+*.bak.*
 ~*
 
 # ========== 运行时密钥（不进 git） ==========

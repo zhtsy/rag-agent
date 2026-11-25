@@ -28,7 +28,10 @@ async function api(path, { method = 'GET', body } = {}) {
   let data = {};
   try { data = await res.json(); } catch { /* 空响应体 */ }
 
-  if (res.status === 401) {
+  // 登录/注册接口的 401 是「账号或密码不对」，不是「会话过期」。
+  // 早期这里无差别抛「未登录」，被表单翻译成「登录已过期」——
+  // 于是输错密码的人以为会话掉了，反复用同一组错凭据重试。
+  if (res.status === 401 && path !== '/auth/login' && path !== '/auth/register') {
     showAuth();
     throw new Error('未登录');
   }

@@ -1,0 +1,1064 @@
+[
+ {
+  "file": "test_cases_law.json",
+  "file_label": "主集（定义/条号/数值/拒答）",
+  "seq": 1,
+  "id": "L001",
+  "category": "条文定位",
+  "question": "《专利法》第三十六条是怎么规定的？",
+  "expected_answer": "第三十六条：发明专利的申请人请求实质审查的时候，应当提交在申请日前与其发明有关的参考资料。\n发明专利已经在外国提出过申请的，国务院专利行政部门可以要求申请人在指定期限内提交该国为审查其申请进行检索的资料或者审查结果的资料；无正当理由",
+  "expected_source": "专利法.md",
+  "must_contain": [
+   "发明专利的申请人"
+  ],
+  "must_not_contain": []
+ },
+ {
+  "file": "test_cases_law.json",
+  "file_label": "主集（定义/条号/数值/拒答）",
+  "seq": 2,
+  "id": "L002",
+  "category": "条文定位",
+  "question": "《专利法》第六十八条是怎么规定的？",
+  "expected_answer": "第六十八条：假冒专利的，除依法承担民事责任外，由负责专利执法的部门责令改正并予公告，没收违法所得，可以处违法所得五倍以下的罚款；没有违法所得或者违法所得在五万元以下的，可以处二十五万元以下的罚款；构成犯罪的，依法追究刑事责任。",
+  "expected_source": "专利法.md",
+  "must_contain": [
+   "除依法承担民事责"
+  ],
+  "must_not_contain": []
+ },
+ {
+  "file": "test_cases_law.json",
+  "file_label": "主集（定义/条号/数值/拒答）",
+  "seq": 3,
+  "id": "L007",
+  "category": "条文定位",
+  "question": "《个人信息保护法》第四十三条是怎么规定的？",
+  "expected_answer": "第四十三条：任何国家或者地区在个人信息保护方面对中华人民共和国采取歧视性的禁止、限制或者其他类似措施的，中华人民共和国可以根据实际情况对该国家或者地区对等采取措施。",
+  "expected_source": "个人信息保护法.md",
+  "must_contain": [
+   "国家或者地区在个"
+  ],
+  "must_not_contain": []
+ },
+ {
+  "file": "test_cases_law.json",
+  "file_label": "主集（定义/条号/数值/拒答）",
+  "seq": 4,
+  "id": "L008",
+  "category": "条文定位",
+  "question": "《个人信息保护法》第四十七条是怎么规定的？",
+  "expected_answer": "第四十七条：有下列情形之一的，个人信息处理者应当主动删除个人信息；个人信息处理者未删除的，个人有权请求删除：\n（一）处理目的已实现、无法实现或者为实现处理目的不再必要；\n（二）个人信息处理者停止提供产品或者服务，或者保存期限已届满；",
+  "expected_source": "个人信息保护法.md",
+  "must_contain": [
+   "个人信息处理者未"
+  ],
+  "must_not_contain": []
+ },
+ {
+  "file": "test_cases_law.json",
+  "file_label": "主集（定义/条号/数值/拒答）",
+  "seq": 5,
+  "id": "L013",
+  "category": "条文定位",
+  "question": "《个人所得税法》第十条是怎么规定的？",
+  "expected_answer": "第十条：有下列情形之一的，纳税人应当依法办理纳税申报：\n（一）取得综合所得需要办理汇算清缴；\n（二）取得应税所得没有扣缴义务人；\n（三）取得应税所得，扣缴义务人未扣缴税款；\n（四）取得境外所得；\n（五）因移居境外注销中国户籍；\n",
+  "expected_source": "个人所得税法.md",
+  "must_contain": [
+   "纳税人应当依法办"
+  ],
+  "must_not_contain": []
+ },
+ {
+  "file": "test_cases_law.json",
+  "file_label": "主集（定义/条号/数值/拒答）",
+  "seq": 6,
+  "id": "L014",
+  "category": "条文定位",
+  "question": "《个人所得税法》第十五条是怎么规定的？",
+  "expected_answer": "第十五条：公安、人民银行、金融监督管理等相关部门应当协助税务机关确认纳税人的身份、金融账户信息。教育、卫生、医疗保障、民政、人力资源社会保障、住房城乡建设、公安、人民银行、金融监督管理等相关部门应当向税务机关提供纳税人子女教育、继",
+  "expected_source": "个人所得税法.md",
+  "must_contain": [
+   "金融监督管理等相"
+  ],
+  "must_not_contain": []
+ },
+ {
+  "file": "test_cases_law.json",
+  "file_label": "主集（定义/条号/数值/拒答）",
+  "seq": 7,
+  "id": "L019",
+  "category": "条文定位",
+  "question": "《个人独资企业法》第十九条是怎么规定的？",
+  "expected_answer": "第十九条：个人独资企业投资人可以自行管理企业事务，也可以委托或者聘用其他具有民事行为能力的人负责企业的事务管理。\n投资人委托或者聘用他人管理个人独资企业事务，应当与受托人或者被聘用的人签订书面合同，明确委托的具体内容和授予的权利范",
+  "expected_source": "个人独资企业法.md",
+  "must_contain": [
+   "也可以委托或者聘"
+  ],
+  "must_not_contain": []
+ },
+ {
+  "file": "test_cases_law.json",
+  "file_label": "主集（定义/条号/数值/拒答）",
+  "seq": 8,
+  "id": "L020",
+  "category": "条文定位",
+  "question": "《个人独资企业法》第四十四条是怎么规定的？",
+  "expected_answer": "第四十四条：登记机关对不符合本法规定条件的个人独资企业予以登记，或者对符合本法规定条件的企业不予登记的，对直接责任人员依法给予行政处分；构成犯罪的，依法追究刑事责任。",
+  "expected_source": "个人独资企业法.md",
+  "must_contain": [
+   "本法规定条件的个"
+  ],
+  "must_not_contain": []
+ },
+ {
+  "file": "test_cases_law.json",
+  "file_label": "主集（定义/条号/数值/拒答）",
+  "seq": 9,
+  "id": "L025",
+  "category": "条文定位",
+  "question": "《产品质量法》第二十七条是怎么规定的？",
+  "expected_answer": "第二十七条：产品或者其包装上的标识必须真实，并符合下列要求：\n（一）有产品质量检验合格证明；\n（二）有中文标明的产品名称、生产厂厂名和厂址；\n（三）根据产品的特点和使用要求，需要标明产品规格、等级、所含主要成份的名称和含量的，用中文",
+  "expected_source": "产品质量法.md",
+  "must_contain": [
+   "有产品质量检验合"
+  ],
+  "must_not_contain": []
+ },
+ {
+  "file": "test_cases_law.json",
+  "file_label": "主集（定义/条号/数值/拒答）",
+  "seq": 10,
+  "id": "L026",
+  "category": "条文定位",
+  "question": "《产品质量法》第四十七条是怎么规定的？",
+  "expected_answer": "第四十七条：因产品质量发生民事纠纷时，当事人可以通过协商或者调解解决。当事人不愿通过协商、调解解决或者协商、调解不成的，可以根据当事人各方的协议向仲裁机构申请仲裁；当事人各方没有达成仲裁协议或者仲裁协议无效的，可以直接向人民法院起诉",
+  "expected_source": "产品质量法.md",
+  "must_contain": [
+   "因产品质量发生民"
+  ],
+  "must_not_contain": []
+ },
+ {
+  "file": "test_cases_law.json",
+  "file_label": "主集（定义/条号/数值/拒答）",
+  "seq": 11,
+  "id": "L031",
+  "category": "条文定位",
+  "question": "《仲裁法》第十五条是怎么规定的？",
+  "expected_answer": "第十五条：仲裁机构应当具备下列条件：\n（一）有自己的名称、住所和章程；\n（二）有必要的财产；\n（三）有符合本法规定的组成人员；\n（四）有聘任的仲裁员。\n仲裁机构的章程应当依照本法制定。",
+  "expected_source": "仲裁法.md",
+  "must_contain": [
+   "仲裁机构应当具备"
+  ],
+  "must_not_contain": []
+ },
+ {
+  "file": "test_cases_law.json",
+  "file_label": "主集（定义/条号/数值/拒答）",
+  "seq": 12,
+  "id": "L032",
+  "category": "条文定位",
+  "question": "《仲裁法》第三十二条是怎么规定的？",
+  "expected_answer": "第三十二条：当事人申请仲裁应当符合下列条件：\n（一）有仲裁协议；\n（二）有具体的仲裁请求和事实、理由；\n（三）属于仲裁机构的受理范围。",
+  "expected_source": "仲裁法.md",
+  "must_contain": [
+   "当事人申请仲裁应"
+  ],
+  "must_not_contain": []
+ },
+ {
+  "file": "test_cases_law.json",
+  "file_label": "主集（定义/条号/数值/拒答）",
+  "seq": 13,
+  "id": "L037",
+  "category": "条文定位",
+  "question": "《企业所得税法》第五十六条是怎么规定的？",
+  "expected_answer": "第五十六条：依照本法缴纳的企业所得税，以人民币计算。所得以人民币以外的货币计算的，应当折合成人民币计算并缴纳税款。",
+  "expected_source": "企业所得税法.md",
+  "must_contain": [
+   "依照本法缴纳的企"
+  ],
+  "must_not_contain": []
+ },
+ {
+  "file": "test_cases_law.json",
+  "file_label": "主集（定义/条号/数值/拒答）",
+  "seq": 14,
+  "id": "L038",
+  "category": "条文定位",
+  "question": "《企业所得税法》第二十八条是怎么规定的？",
+  "expected_answer": "第二十八条：符合条件的小型微利企业，减按20％的税率征收企业所得税。\n国家需要重点扶持的高新技术企业，减按15％的税率征收企业所得税。",
+  "expected_source": "企业所得税法.md",
+  "must_contain": [
+   "符合条件的小型微"
+  ],
+  "must_not_contain": []
+ },
+ {
+  "file": "test_cases_law.json",
+  "file_label": "主集（定义/条号/数值/拒答）",
+  "seq": 15,
+  "id": "L043",
+  "category": "条文定位",
+  "question": "《企业破产法》第三十六条是怎么规定的？",
+  "expected_answer": "第三十六条：债务人的董事、监事和高级管理人员利用职权从企业获取的非正常收入和侵占的企业财产，管理人应当追回。",
+  "expected_source": "企业破产法.md",
+  "must_contain": [
+   "和高级管理人员利"
+  ],
+  "must_not_contain": []
+ },
+ {
+  "file": "test_cases_law.json",
+  "file_label": "主集（定义/条号/数值/拒答）",
+  "seq": 16,
+  "id": "L044",
+  "category": "条文定位",
+  "question": "《企业破产法》第五十一条是怎么规定的？",
+  "expected_answer": "第五十一条：债务人的保证人或者其他连带债务人已经代替债务人清偿债务的，以其对债务人的求偿权申报债权。\n债务人的保证人或者其他连带债务人尚未代替债务人清偿债务的，以其对债务人的将来求偿权申报债权。但是，债权人已经向管理人申报全部债权的",
+  "expected_source": "企业破产法.md",
+  "must_contain": [
+   "债务人的保证人或"
+  ],
+  "must_not_contain": []
+ },
+ {
+  "file": "test_cases_law.json",
+  "file_label": "主集（定义/条号/数值/拒答）",
+  "seq": 17,
+  "id": "D001",
+  "category": "定义式",
+  "question": "《专利法》里的「现有技术」是指什么？",
+  "expected_answer": "见《专利法》第二十二条：授予专利权的发明和实用新型，应当具备新颖性、创造性和实用性。\n新颖性，是指该发明或者实用新型不属于现有技术；也没有任何单位或者个人就同样的发明或者实用新型在申请日以前向国务院专利行政部门提出过申请，并记载在申请日以后公布",
+  "expected_source": "专利法.md",
+  "must_contain": [
+   "外为公众所知的技"
+  ],
+  "must_not_contain": []
+ },
+ {
+  "file": "test_cases_law.json",
+  "file_label": "主集（定义/条号/数值/拒答）",
+  "seq": 18,
+  "id": "D002",
+  "category": "定义式",
+  "question": "《专利法》里的「现有设计」是指什么？",
+  "expected_answer": "见《专利法》第二十三条：授予专利权的外观设计，应当不属于现有设计；也没有任何单位或者个人就同样的外观设计在申请日以前向国务院专利行政部门提出过申请，并记载在申请日以后公告的专利文件中。\n授予专利权的外观设计与现有设计或者现有设计特征的组合相比，",
+  "expected_source": "专利法.md",
+  "must_contain": [
+   "外为公众所知的设"
+  ],
+  "must_not_contain": []
+ },
+ {
+  "file": "test_cases_law.json",
+  "file_label": "主集（定义/条号/数值/拒答）",
+  "seq": 19,
+  "id": "D003",
+  "category": "定义式",
+  "question": "《产品质量法》里的「缺陷」是指什么？",
+  "expected_answer": "见《产品质量法》第四十六条：本法所称缺陷，是指产品存在危及人身、他人财产安全的不合理的危险；产品有保障人体健康和人身、财产安全的国家标准、行业标准的，是指不符合该标准。",
+  "expected_source": "产品质量法.md",
+  "must_contain": [
+   "产品存在危及人身"
+  ],
+  "must_not_contain": []
+ },
+ {
+  "file": "test_cases_law.json",
+  "file_label": "主集（定义/条号/数值/拒答）",
+  "seq": 20,
+  "id": "D004",
+  "category": "定义式",
+  "question": "《公司法》里的「累积投票制」是指什么？",
+  "expected_answer": "见《公司法》第一百一十七条：股东会选举董事、监事，可以按照公司章程的规定或者股东会的决议，实行累积投票制。\n本法所称累积投票制，是指股东会选举董事或者监事时，每一股份拥有与应选董事或者监事人数相同的表决权，股东拥有的表决权可以集中使用。",
+  "expected_source": "公司法.md",
+  "must_contain": [
+   "股东会选举董事或"
+  ],
+  "must_not_contain": []
+ },
+ {
+  "file": "test_cases_law.json",
+  "file_label": "主集（定义/条号/数值/拒答）",
+  "seq": 21,
+  "id": "D005",
+  "category": "定义式",
+  "question": "《公司法》里的「国家出资公司」是指什么？",
+  "expected_answer": "见《公司法》第一百六十八条：国家出资公司的组织机构，适用本章规定；本章没有规定的，适用本法其他规定。\n本法所称国家出资公司，是指国家出资的国有独资公司、国有资本控股公司，包括国家出资的有限责任公司、股份有限公司。",
+  "expected_source": "公司法.md",
+  "must_contain": [
+   "国家出资的国有独"
+  ],
+  "must_not_contain": []
+ },
+ {
+  "file": "test_cases_law.json",
+  "file_label": "主集（定义/条号/数值/拒答）",
+  "seq": 22,
+  "id": "D007",
+  "category": "定义式",
+  "question": "《刑法》里的「毒品」是指什么？",
+  "expected_answer": "见《刑法》第三百五十七条：本法所称的毒品，是指鸦片、海洛因、甲基苯丙胺（冰毒）、吗啡、大麻、可卡因以及国家规定管制的其他能够使人形成瘾癖的麻醉药品和精神药品。\n毒品的数量以查证属实的走私、贩卖、运输、制造、非法持有毒品的数量计算，不以纯度折算。",
+  "expected_source": "刑法.md",
+  "must_contain": [
+   "可卡因以及国家规"
+  ],
+  "must_not_contain": []
+ },
+ {
+  "file": "test_cases_law.json",
+  "file_label": "主集（定义/条号/数值/拒答）",
+  "seq": 23,
+  "id": "D008",
+  "category": "定义式",
+  "question": "《刑法》里的「告诉才处理」是指什么？",
+  "expected_answer": "见《刑法》第九十八条：本法所称告诉才处理，是指被害人告诉才处理。如果被害人因受强制、威吓无法告诉的，人民检察院和被害人的近亲属也可以告诉。",
+  "expected_source": "刑法.md",
+  "must_contain": [
+   "被害人告诉才处理"
+  ],
+  "must_not_contain": []
+ },
+ {
+  "file": "test_cases_law.json",
+  "file_label": "主集（定义/条号/数值/拒答）",
+  "seq": 24,
+  "id": "D010",
+  "category": "定义式",
+  "question": "《反不正当竞争法》里的「商业秘密」是指什么？",
+  "expected_answer": "见《反不正当竞争法》第十条：经营者不得实施下列侵犯商业秘密的行为：\n（一）以盗窃、贿赂、欺诈、胁迫、电子侵入或者其他不正当手段获取权利人的商业秘密；\n（二）披露、使用或者允许他人使用以前项手段获取的权利人的商业秘密；\n（三）违反保密义务或者违反权利",
+  "expected_source": "反不正当竞争法.md",
+  "must_contain": [
+   "具有商业价值并经"
+  ],
+  "must_not_contain": []
+ },
+ {
+  "file": "test_cases_law.json",
+  "file_label": "主集（定义/条号/数值/拒答）",
+  "seq": 25,
+  "id": "D011",
+  "category": "定义式",
+  "question": "《反垄断法》里的「市场支配地位」是指什么？",
+  "expected_answer": "见《反垄断法》第二十二条：禁止具有市场支配地位的经营者从事下列滥用市场支配地位的行为：\n（一）以不公平的高价销售商品或者以不公平的低价购买商品；\n（二）没有正当理由，以低于成本的价格销售商品；\n（三）没有正当理由，拒绝与交易相对人进行交易；\n（四",
+  "expected_source": "反垄断法.md",
+  "must_contain": [
+   "数量或者其他交易"
+  ],
+  "must_not_contain": []
+ },
+ {
+  "file": "test_cases_law.json",
+  "file_label": "主集（定义/条号/数值/拒答）",
+  "seq": 26,
+  "id": "D012",
+  "category": "定义式",
+  "question": "《反垄断法》里的「经营者」是指什么？",
+  "expected_answer": "见《反垄断法》第十五条：本法所称经营者，是指从事商品生产、经营或者提供服务的自然人、法人和非法人组织。\n本法所称相关市场，是指经营者在一定时期内就特定商品或者服务（以下统称商品）进行竞争的商品范围和地域范围。",
+  "expected_source": "反垄断法.md",
+  "must_contain": [
+   "或者提供服务的自"
+  ],
+  "must_not_contain": []
+ },
+ {
+  "file": "test_cases_law.json",
+  "file_label": "主集（定义/条号/数值/拒答）",
+  "seq": 27,
+  "id": "D013",
+  "category": "定义式",
+  "question": "《商标法》里的「集体商标」是指什么？",
+  "expected_answer": "见《商标法》第六条：本法所称集体商标，是指以行业协会等社会团体或者其他组织名义注册，供该组织成员在商事活动中使用，以表明使用者在该组织中的成员资格的标志。\n本法所称证明商标，是指由对某种商品或者服务具有监督能力的组织所控制，而由该组织以外的",
+  "expected_source": "商标法.md",
+  "must_contain": [
+   "以行业协会等社会"
+  ],
+  "must_not_contain": []
+ },
+ {
+  "file": "test_cases_law.json",
+  "file_label": "主集（定义/条号/数值/拒答）",
+  "seq": 28,
+  "id": "D014",
+  "category": "定义式",
+  "question": "《电子商务法》里的「电子商务经营者」是指什么？",
+  "expected_answer": "见《电子商务法》第九条：本法所称电子商务经营者，是指通过互联网等信息网络从事销售商品或者提供服务的经营活动的自然人、法人和非法人组织，包括电子商务平台经营者、平台内经营者以及通过自建网站、其他网络服务销售商品或者提供服务的电子商务经营者。\n本法",
+  "expected_source": "电子商务法.md",
+  "must_contain": [
+   "网等信息网络从事"
+  ],
+  "must_not_contain": []
+ },
+ {
+  "file": "test_cases_law.json",
+  "file_label": "主集（定义/条号/数值/拒答）",
+  "seq": 29,
+  "id": "T001",
+  "category": "主题定位",
+  "question": "哪部法律规定，发明专利的申请人请求实质审查的时候？",
+  "expected_answer": "《专利法》第三十六条：发明专利的申请人请求实质审查的时候",
+  "expected_source": "专利法.md",
+  "must_contain": [
+   "专利法"
+  ],
+  "must_not_contain": []
+ },
+ {
+  "file": "test_cases_law.json",
+  "file_label": "主集（定义/条号/数值/拒答）",
+  "seq": 30,
+  "id": "T004",
+  "category": "主题定位",
+  "question": "哪部法律规定，个人信息处理者利用个人信息进行自动化决策？",
+  "expected_answer": "《个人信息保护法》第二十四条：个人信息处理者利用个人信息进行自动化决策",
+  "expected_source": "个人信息保护法.md",
+  "must_contain": [
+   "个人信息保护法"
+  ],
+  "must_not_contain": []
+ },
+ {
+  "file": "test_cases_law.json",
+  "file_label": "主集（定义/条号/数值/拒答）",
+  "seq": 31,
+  "id": "T007",
+  "category": "主题定位",
+  "question": "哪部法律规定，居民个人从中国境外取得的所得？",
+  "expected_answer": "《个人所得税法》第七条：居民个人从中国境外取得的所得",
+  "expected_source": "个人所得税法.md",
+  "must_contain": [
+   "个人所得税法"
+  ],
+  "must_not_contain": []
+ },
+ {
+  "file": "test_cases_law.json",
+  "file_label": "主集（定义/条号/数值/拒答）",
+  "seq": 32,
+  "id": "T009",
+  "category": "主题定位",
+  "question": "哪部法律规定，个人独资企业投资人可以自行管理企业事务？",
+  "expected_answer": "《个人独资企业法》第十九条：个人独资企业投资人可以自行管理企业事务",
+  "expected_source": "个人独资企业法.md",
+  "must_contain": [
+   "个人独资企业法"
+  ],
+  "must_not_contain": []
+ },
+ {
+  "file": "test_cases_law.json",
+  "file_label": "主集（定义/条号/数值/拒答）",
+  "seq": 33,
+  "id": "T012",
+  "category": "主题定位",
+  "question": "哪部法律规定，产品或者其包装上的标识必须真实？",
+  "expected_answer": "《产品质量法》第二十七条：产品或者其包装上的标识必须真实",
+  "expected_source": "产品质量法.md",
+  "must_contain": [
+   "产品质量法"
+  ],
+  "must_not_contain": []
+ },
+ {
+  "file": "test_cases_law.json",
+  "file_label": "主集（定义/条号/数值/拒答）",
+  "seq": 34,
+  "id": "T015",
+  "category": "主题定位",
+  "question": "哪部法律规定，仲裁庭发现当事人单方捏造基本事实申请仲裁或者当事人之间恶意串通？",
+  "expected_answer": "《仲裁法》第六十一条：仲裁庭发现当事人单方捏造基本事实申请仲裁或者当事人之间恶意串通",
+  "expected_source": "仲裁法.md",
+  "must_contain": [
+   "仲裁法"
+  ],
+  "must_not_contain": []
+ },
+ {
+  "file": "test_cases_law.json",
+  "file_label": "主集（定义/条号/数值/拒答）",
+  "seq": 35,
+  "id": "T018",
+  "category": "主题定位",
+  "question": "哪部法律规定，依照本法缴纳的企业所得税？",
+  "expected_answer": "《企业所得税法》第五十六条：依照本法缴纳的企业所得税",
+  "expected_source": "企业所得税法.md",
+  "must_contain": [
+   "企业所得税法"
+  ],
+  "must_not_contain": []
+ },
+ {
+  "file": "test_cases_law.json",
+  "file_label": "主集（定义/条号/数值/拒答）",
+  "seq": 36,
+  "id": "T021",
+  "category": "主题定位",
+  "question": "哪部法律规定，管理人应当及时拟订破产财产变价方案？",
+  "expected_answer": "《企业破产法》第一百一十一条：管理人应当及时拟订破产财产变价方案",
+  "expected_source": "企业破产法.md",
+  "must_contain": [
+   "企业破产法"
+  ],
+  "must_not_contain": []
+ },
+ {
+  "file": "test_cases_law.json",
+  "file_label": "主集（定义/条号/数值/拒答）",
+  "seq": 37,
+  "id": "R01",
+  "category": "拒答",
+  "question": "《民法典》第一千二百九十七条对碳排放配额的交易规则是怎么规定的？",
+  "expected_answer": "该法共 1260 条，第一千二百九十七条不存在；且全部语料都没有碳排放配额交易规则，应拒答",
+  "expected_source": "",
+  "must_contain": [
+   "没有",
+   "未",
+   "无法",
+   "不存在",
+   "超出"
+  ],
+  "must_not_contain": []
+ },
+ {
+  "file": "test_cases_law.json",
+  "file_label": "主集（定义/条号/数值/拒答）",
+  "seq": 38,
+  "id": "R02",
+  "category": "拒答",
+  "question": "《劳动合同法》第一百三十五条对碳排放配额的交易规则是怎么规定的？",
+  "expected_answer": "该法共 98 条，第一百三十五条不存在；且全部语料都没有碳排放配额交易规则，应拒答",
+  "expected_source": "",
+  "must_contain": [
+   "没有",
+   "未",
+   "无法",
+   "不存在",
+   "超出"
+  ],
+  "must_not_contain": []
+ },
+ {
+  "file": "test_cases_law.json",
+  "file_label": "主集（定义/条号/数值/拒答）",
+  "seq": 39,
+  "id": "R03",
+  "category": "拒答",
+  "question": "《个人信息保护法》第一百一十一条对碳排放配额的交易规则是怎么规定的？",
+  "expected_answer": "该法共 74 条，第一百一十一条不存在；且全部语料都没有碳排放配额交易规则，应拒答",
+  "expected_source": "",
+  "must_contain": [
+   "没有",
+   "未",
+   "无法",
+   "不存在",
+   "超出"
+  ],
+  "must_not_contain": []
+ },
+ {
+  "file": "test_cases_law.json",
+  "file_label": "主集（定义/条号/数值/拒答）",
+  "seq": 40,
+  "id": "R04",
+  "category": "拒答",
+  "question": "《公司法》第三百零三条对碳排放配额的交易规则是怎么规定的？",
+  "expected_answer": "该法共 266 条，第三百零三条不存在；且全部语料都没有碳排放配额交易规则，应拒答",
+  "expected_source": "",
+  "must_contain": [
+   "没有",
+   "未",
+   "无法",
+   "不存在",
+   "超出"
+  ],
+  "must_not_contain": []
+ },
+ {
+  "file": "test_cases_law_mixed.json",
+  "file_label": "混合集（表格/扫描件/PDF 独有）",
+  "seq": 1,
+  "id": "MX01",
+  "category": "表格-税率",
+  "question": "借款合同的印花税税率是多少？",
+  "expected_answer": "印花税税目税率表：合同（指书面合同）—借款合同，税率为借款金额的万分之零点五。",
+  "expected_source": "中华人民共和国印花税法_20210610_ff80818179f5da5e0179f890885b0481.pdf",
+  "must_contain": [
+   "万分之零点五"
+  ],
+  "must_not_contain": []
+ },
+ {
+  "file": "test_cases_law_mixed.json",
+  "file_label": "混合集（表格/扫描件/PDF 独有）",
+  "seq": 2,
+  "id": "MX02",
+  "category": "表格-税额",
+  "question": "1.6升以上至2.0升（含）的乘用车，车船税年基准税额是多少？",
+  "expected_answer": "车船税税目税额表：乘用车〔按发动机汽缸容量（排气量）分档〕1.6升以上至2.0升（含）的，每辆，360元至660元。",
+  "expected_source": "中华人民共和国车船税法_20190423_ff8080816f135f46016f215dc4071a64.pdf",
+  "must_contain": [
+   "360元至660元"
+  ],
+  "must_not_contain": []
+ },
+ {
+  "file": "test_cases_law_mixed.json",
+  "file_label": "混合集（表格/扫描件/PDF 独有）",
+  "seq": 3,
+  "id": "MX03",
+  "category": "表格-税额",
+  "question": "挂车的车船税怎么计算？",
+  "expected_answer": "挂车按整备质量每吨计算，按照货车税额的50%计算。",
+  "expected_source": "中华人民共和国车船税法_20190423_ff8080816f135f46016f215dc4071a64.pdf",
+  "must_contain": [
+   "50%"
+  ],
+  "must_not_contain": []
+ },
+ {
+  "file": "test_cases_law_mixed.json",
+  "file_label": "混合集（表格/扫描件/PDF 独有）",
+  "seq": 4,
+  "id": "MX04",
+  "category": "表格-税率",
+  "question": "原油的资源税税率是多少？",
+  "expected_answer": "资源税税目税率表：能源矿产—原油，征税对象为原矿，税率6%。",
+  "expected_source": "中华人民共和国资源税法_20190826_ff8080816f3cbb3c016f4635be1b2873.pdf",
+  "must_contain": [
+   "6%",
+   "原油"
+  ],
+  "must_not_contain": []
+ },
+ {
+  "file": "test_cases_law_mixed.json",
+  "file_label": "混合集（表格/扫描件/PDF 独有）",
+  "seq": 5,
+  "id": "MX05",
+  "category": "表格-税额",
+  "question": "大气污染物的环境保护税税额标准是多少？",
+  "expected_answer": "环境保护税税目税额表：大气污染物，每污染当量1.2元至12元。",
+  "expected_source": "中华人民共和国环境保护税法_20251028_6bae366fd9f94fbf9450c48a68bfc68a.pdf",
+  "must_contain": [
+   "1.2元至12元"
+  ],
+  "must_not_contain": []
+ },
+ {
+  "file": "test_cases_law_mixed.json",
+  "file_label": "混合集（表格/扫描件/PDF 独有）",
+  "seq": 6,
+  "id": "MX06",
+  "category": "表格-税额",
+  "question": "甘肃的耕地占用税平均税额是每平方米多少元？",
+  "expected_answer": "各省、自治区、直辖市耕地占用税平均税额表：内蒙古、西藏、甘肃、青海、宁夏、新疆为12.5元／平方米。",
+  "expected_source": "中华人民共和国耕地占用税法_20181229_ff8080816f135f46016f213156b61815.pdf",
+  "must_contain": [
+   "12.5"
+  ],
+  "must_not_contain": []
+ },
+ {
+  "file": "test_cases_law_mixed.json",
+  "file_label": "混合集（表格/扫描件/PDF 独有）",
+  "seq": 7,
+  "id": "MX07",
+  "category": "条文-PDF独有",
+  "question": "商业银行以什么为经营原则？",
+  "expected_answer": "商业银行以安全性、流动性、效益性为经营原则，实行自主经营、自担风险、自负盈亏、自我约束。",
+  "expected_source": "中华人民共和国商业银行法_20150829_2c909fdd678bf17901678bf7eba9086b.pdf",
+  "must_contain": [
+   "安全性",
+   "效益性"
+  ],
+  "must_not_contain": []
+ },
+ {
+  "file": "test_cases_law_mixed.json",
+  "file_label": "混合集（表格/扫描件/PDF 独有）",
+  "seq": 8,
+  "id": "MX08",
+  "category": "条文-扫描件",
+  "question": "财产案件的案件受理费按什么标准交纳？",
+  "expected_answer": "财产案件根据诉讼请求的金额或者价额，按照下列比例分段累计交纳：不超过1万元的每件交纳50元；超过1万元至10万元的部分按2.5%交纳……",
+  "expected_source": "诉讼费用交纳办法_20061219_ff8080816f3e98bd016f41e1395a015f.pdf",
+  "must_contain": [
+   "诉讼请求的金额或者价额"
+  ],
+  "must_not_contain": []
+ },
+ {
+  "file": "test_cases_law_mixed.json",
+  "file_label": "混合集（表格/扫描件/PDF 独有）",
+  "seq": 9,
+  "id": "MX09",
+  "category": "条文-扫描件",
+  "question": "申请仲裁时争议金额怎么确定？",
+  "expected_answer": "仲裁案件受理费表中的争议金额，以申请人请求的数额为准；请求的数额与实际争议金额不一致的，以实际争议金额为准。",
+  "expected_source": "仲裁委员会仲裁收费办法_19950728_ff8080816f3cbb3c016f4145fce81fa4.pdf",
+  "must_contain": [
+   "以申请人请求的数额为准"
+  ],
+  "must_not_contain": []
+ },
+ {
+  "file": "test_cases_law_mixed.json",
+  "file_label": "混合集（表格/扫描件/PDF 独有）",
+  "seq": 10,
+  "id": "MX10",
+  "category": "条文-PDF独有",
+  "question": "土地增值税实行几级税率？各级税率分别是多少？",
+  "expected_answer": "土地增值税实行四级超率累进税率：增值额未超过扣除项目金额50%的部分税率为30%；超过50%未超过100%的部分税率为40%；超过100%未超过200%的部分税率为50%；超过200%的部分税率为60%。",
+  "expected_source": "中华人民共和国土地增值税暂行条例_20110108_ff8080816f3cbb3c016f411bd9e317a0.pdf",
+  "must_contain": [
+   "四级超率累进税率"
+  ],
+  "must_not_contain": []
+ },
+ {
+  "file": "test_cases_table.json",
+  "file_label": "表格集（税额表定向）",
+  "seq": 1,
+  "id": "T01",
+  "category": "表格数值",
+  "question": "《车船税法》所附税目税额表里，1.6升以上至2.0升（含）的乘用车，年基准税额是多少？",
+  "expected_answer": "",
+  "expected_source": "车船税法.pdf",
+  "must_contain": [
+   "360",
+   "660"
+  ],
+  "must_not_contain": [
+   "未在知识库中找到",
+   "无法从知识库"
+  ]
+ },
+ {
+  "file": "test_cases_table.json",
+  "file_label": "表格集（税额表定向）",
+  "seq": 2,
+  "id": "T02",
+  "category": "合并单元格",
+  "question": "《车船税法》的税目税额表中，挂车的年基准税额怎么计算？",
+  "expected_answer": "",
+  "expected_source": "车船税法.pdf",
+  "must_contain": [
+   "50%"
+  ],
+  "must_not_contain": [
+   "未在知识库中找到",
+   "无法从知识库"
+  ]
+ },
+ {
+  "file": "test_cases_table.json",
+  "file_label": "表格集（税额表定向）",
+  "seq": 3,
+  "id": "T03",
+  "category": "表格数值",
+  "question": "《车船税法》规定摩托车每辆的年基准税额幅度是多少？",
+  "expected_answer": "",
+  "expected_source": "车船税法.pdf",
+  "must_contain": [
+   "36",
+   "180"
+  ],
+  "must_not_contain": [
+   "未在知识库中找到",
+   "无法从知识库"
+  ]
+ },
+ {
+  "file": "test_cases_table.json",
+  "file_label": "表格集（税额表定向）",
+  "seq": 4,
+  "id": "T04",
+  "category": "表格数值",
+  "question": "《环境保护税法》所附税目税额表中，大气污染物每污染当量的税额是多少？",
+  "expected_answer": "",
+  "expected_source": "环境保护税法.pdf",
+  "must_contain": [
+   "1.2",
+   "12"
+  ],
+  "must_not_contain": [
+   "未在知识库中找到",
+   "无法从知识库"
+  ]
+ },
+ {
+  "file": "test_cases_table.json",
+  "file_label": "表格集（税额表定向）",
+  "seq": 5,
+  "id": "T05",
+  "category": "表格数值",
+  "question": "《环境保护税法》里危险废物每吨的税额是多少？",
+  "expected_answer": "",
+  "expected_source": "环境保护税法.pdf",
+  "must_contain": [
+   "1000"
+  ],
+  "must_not_contain": [
+   "未在知识库中找到",
+   "无法从知识库"
+  ]
+ },
+ {
+  "file": "test_cases_table.json",
+  "file_label": "表格集（税额表定向）",
+  "seq": 6,
+  "id": "T06",
+  "category": "表格数值",
+  "question": "《印花税法》的税目税率表里，借款合同的税率是多少？",
+  "expected_answer": "",
+  "expected_source": "印花税法.pdf",
+  "must_contain": [
+   "万分之零点五"
+  ],
+  "must_not_contain": [
+   "未在知识库中找到",
+   "无法从知识库"
+  ]
+ },
+ {
+  "file": "test_cases_table.json",
+  "file_label": "表格集（税额表定向）",
+  "seq": 7,
+  "id": "T07",
+  "category": "表格数值",
+  "question": "《资源税法》的税目税率表里，原油的税率是多少？",
+  "expected_answer": "",
+  "expected_source": "资源税法.pdf",
+  "must_contain": [
+   "6"
+  ],
+  "must_not_contain": [
+   "未在知识库中找到",
+   "无法从知识库"
+  ]
+ },
+ {
+  "file": "test_cases_table.json",
+  "file_label": "表格集（税额表定向）",
+  "seq": 8,
+  "id": "T08",
+  "category": "表格数值",
+  "question": "《耕地占用税法》所附平均税额表里，上海每平方米的平均税额是多少？",
+  "expected_answer": "",
+  "expected_source": "耕地占用税法.pdf",
+  "must_contain": [
+   "45"
+  ],
+  "must_not_contain": [
+   "未在知识库中找到",
+   "无法从知识库"
+  ]
+ },
+ {
+  "file": "test_cases_table.json",
+  "file_label": "表格集（税额表定向）",
+  "seq": 9,
+  "id": "T09",
+  "category": "扫描件收费表",
+  "question": "《诉讼费用交纳办法》里，财产案件超过10万元至20万元的部分，按什么比例交纳案件受理费？",
+  "expected_answer": "",
+  "expected_source": "诉讼费用交纳办法.pdf",
+  "must_contain": [
+   "2%"
+  ],
+  "must_not_contain": [
+   "未在知识库中找到",
+   "无法从知识库"
+  ]
+ },
+ {
+  "file": "test_cases_table.json",
+  "file_label": "表格集（税额表定向）",
+  "seq": 10,
+  "id": "T10",
+  "category": "扫描件收费表",
+  "question": "《仲裁委员会仲裁收费办法》规定，申请人应当按照什么标准预交案件受理费？",
+  "expected_answer": "",
+  "expected_source": "仲裁委员会仲裁收费办法.pdf",
+  "must_contain": [
+   "仲裁案件受理费表"
+  ],
+  "must_not_contain": [
+   "未在知识库中找到",
+   "无法从知识库"
+  ]
+ },
+ {
+  "file": "test_cases_law_graph.json",
+  "file_label": "图谱集（条文引用图）",
+  "seq": 1,
+  "id": "G01",
+  "category": "图谱-入边援引",
+  "question": "《商标法》第十五条被哪些条文援引？",
+  "expected_answer": "《商标法》第十五条被本法 5 条援引：第三十六条、第五十条、第五十四条、第六十二条、第六十七条。其中第三十六条规定，他人认为违反本法第十五条等规定的，可以在公告之日起二个月内提出异议；第五十四条针对明知标志违反本法第十五条仍恶意申请注册的，给予警告并可处十万元以下罚款；第六十二条规定使用未注册商标违反本法第十五条的，责令限期改正并可处罚款。",
+  "expected_source": "商标法.md",
+  "must_contain": [
+   "第三十六条",
+   "第五十四条",
+   "第六十二条"
+  ],
+  "must_not_contain": []
+ },
+ {
+  "file": "test_cases_law_graph.json",
+  "file_label": "图谱集（条文引用图）",
+  "seq": 2,
+  "id": "G02",
+  "category": "图谱-入边援引",
+  "question": "《食品安全法》第五十条被哪些条文援引？",
+  "expected_answer": "《食品安全法》第五十条被本法 5 条援引：第五十一条、第五十三条、第五十九条、第六十条、第九十八条。第五十条要求食品生产企业建立进货查验记录制度；第五十一条是出厂检验记录，第五十三条是进货查验与销售记录，第五十九条、第六十条分别针对食品添加剂生产者与经营者，第九十八条是进口商记录制度。",
+  "expected_source": "食品安全法.md",
+  "must_contain": [
+   "第五十一条",
+   "第五十三条",
+   "第九十八条"
+  ],
+  "must_not_contain": []
+ },
+ {
+  "file": "test_cases_law_graph.json",
+  "file_label": "图谱集（条文引用图）",
+  "seq": 3,
+  "id": "G03",
+  "category": "图谱-入边援引",
+  "question": "《产品质量法》第四十九条被哪些条文援引？",
+  "expected_answer": "《产品质量法》第四十九条被本法 5 条援引：第五十五条、第六十条、第六十二条、第七十条、第七十二条。第五十五条允许销售者在有充分证据证明不知情时从轻或减轻处罚；第六十条规定没收专门用于生产第四十九条所列产品的原辅材料、包装物、生产工具；第六十二条针对服务业经营者；第七十条、第七十二条分别规定处罚决定机关与货值金额计算方式。",
+  "expected_source": "产品质量法.md",
+  "must_contain": [
+   "第五十五条",
+   "第六十二条",
+   "第七十二条"
+  ],
+  "must_not_contain": []
+ },
+ {
+  "file": "test_cases_law_graph.json",
+  "file_label": "图谱集（条文引用图）",
+  "seq": 4,
+  "id": "G04",
+  "category": "图谱-入边援引",
+  "question": "《企业所得税法》第三条被哪些条文援引？",
+  "expected_answer": "《企业所得税法》第三条被本法 5 条援引：第四条、第十九条、第二十七条、第三十七条、第五十一条。第四条按第三条第三款区分居民企业 25%、非居民企业 20%；第十九条规定非居民企业取得第三条第三款所得的应纳税所得额计算方法；第三十七条对第三条第三款所得实行源泉扣缴；第五十一条规定非居民企业取得第三条第二款所得的纳税地点。",
+  "expected_source": "企业所得税法.md",
+  "must_contain": [
+   "第十九条",
+   "第三十七条",
+   "第五十一条"
+  ],
+  "must_not_contain": []
+ },
+ {
+  "file": "test_cases_law_graph.json",
+  "file_label": "图谱集（条文引用图）",
+  "seq": 5,
+  "id": "G05",
+  "category": "图谱-出边引用",
+  "question": "《劳动合同法》第四十六条引用了哪些条文？",
+  "expected_answer": "《劳动合同法》第四十六条引用了本法 5 条：第三十八条、第三十六条、第四十条、第四十一条、第四十四条。第四十六条规定应当支付经济补偿的情形，其中劳动者依照第三十八条解除、用人单位依照第三十六条协商一致解除、依照第四十条、第四十一条解除，以及依照第四十四条终止的，均属于应支付经济补偿的范围。",
+  "expected_source": "劳动合同法.md",
+  "must_contain": [
+   "第三十八条",
+   "第四十一条",
+   "第四十四条"
+  ],
+  "must_not_contain": []
+ },
+ {
+  "file": "test_cases_law_graph.json",
+  "file_label": "图谱集（条文引用图）",
+  "seq": 6,
+  "id": "G06",
+  "category": "图谱-出边引用",
+  "question": "《专利法实施细则》第五十条引用了哪些条文？",
+  "expected_answer": "《专利法实施细则》第五十条引用了本细则 5 条：第十一条、第二十条、第二十三条、第四十九条、第二条。该条规定初步审查的范围，涉及诚实信用原则（第十一条）、说明书撰写要求（第二十条）、附图与摘要（第二十三条）、分案申请（第四十九条）以及手续的书面形式（第二条）。",
+  "expected_source": "专利法实施细则.md",
+  "must_contain": [
+   "第二十条",
+   "第四十九条"
+  ],
+  "must_not_contain": []
+ },
+ {
+  "file": "test_cases_law_graph.json",
+  "file_label": "图谱集（条文引用图）",
+  "seq": 7,
+  "id": "G07",
+  "category": "图谱-出边引用",
+  "question": "《网络安全法》第七十一条引用了哪些条文？",
+  "expected_answer": "《网络安全法》第七十一条引用了本法 4 条：第十三条、第二十四条、第三十九条、第四十六条。该条列举依照有关法律、行政法规处理处罚的行为，包括发布传输第十三条第二款禁止的信息、违反第二十四条网络实名要求、第三十九条关键信息基础设施数据境内存储要求、第四十六条禁止窃取或非法提供个人信息等情形。",
+  "expected_source": "网络安全法.md",
+  "must_contain": [
+   "第二十四条",
+   "第三十九条",
+   "第四十六条"
+  ],
+  "must_not_contain": []
+ },
+ {
+  "file": "test_cases_law_graph.json",
+  "file_label": "图谱集（条文引用图）",
+  "seq": 8,
+  "id": "G08",
+  "category": "图谱-出边引用",
+  "question": "《电子商务法》第八十条引用了哪些条文？",
+  "expected_answer": "《电子商务法》第八十条引用了本法 4 条：第二十七条、第二十八条、第二十九条、第三十一条。该条对电子商务平台经营者违反上述义务的行为设定行政处罚，涉及经营者身份信息核验登记（第二十七条）、向市场监督管理部门报送信息（第二十八条）、对违法信息采取处置措施（第二十九条）、商品和服务信息与交易信息的记录保存（第三十一条）。",
+  "expected_source": "电子商务法.md",
+  "must_contain": [
+   "第二十七条",
+   "第二十八条",
+   "第三十一条"
+  ],
+  "must_not_contain": []
+ },
+ {
+  "file": "test_cases_law_graph.json",
+  "file_label": "图谱集（条文引用图）",
+  "seq": 9,
+  "id": "G09",
+  "category": "图谱-跨法引用",
+  "question": "《人民检察院民事诉讼监督规则》第十九条引用了哪些条文？",
+  "expected_answer": "该规则第十九条援引了《中华人民共和国民事诉讼法》第二百零九条 —— 规定当事人可以向人民检察院申请检察建议或者抗诉的情形。这条跨法引用在语料内有对应原文，可直接引述。",
+  "expected_source": "人民检察院民事诉讼监督规则.md",
+  "must_contain": [
+   "第二百零九条"
+  ],
+  "must_not_contain": []
+ },
+ {
+  "file": "test_cases_law_graph.json",
+  "file_label": "图谱集（条文引用图）",
+  "seq": 10,
+  "id": "G10",
+  "category": "图谱-入边援引",
+  "question": "《民法典》第五百一十条的规定被哪些条文援引？",
+  "expected_answer": "《民法典》第五百一十条被本法 26 条援引，分布在买卖、租赁、承揽、保管等各章，例如第五百八十二条（履行不符合约定的补救）、第六百零二条（交付期限没有约定或约定不明）、第六百零三条（交付地点）、第六百一十六条（标的物质量要求）、第六百二十六条（买受人支付价款）等。第五百一十条规定的是合同条款没有约定或约定不明时的补充确定规则，因此被大量具体合同条文援引。",
+  "expected_source": "民法典_合同编.md",
+  "must_contain": [
+   "第五百八十二条",
+   "第六百一十六条"
+  ],
+  "must_not_contain": []
+ },
+ {
+  "file": "test_cases_law_graph.json",
+  "file_label": "图谱集（条文引用图）",
+  "seq": 11,
+  "id": "G11",
+  "category": "图谱-多跳定位",
+  "question": "《民法典》第五百一十条被援引的条文中，哪一条规定了标的物质量要求没有约定或者约定不明时的处理？",
+  "expected_answer": "第六百一十六条：当事人对标的物的质量要求没有约定或者约定不明确，依据本法第五百一十条的规定仍不能确定的，适用本法第五百一十一条第一项的规定。",
+  "expected_source": "民法典_合同编.md",
+  "must_contain": [
+   "第六百一十六条",
+   "第五百一十一条第一项"
+  ],
+  "must_not_contain": []
+ }
+]
